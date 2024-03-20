@@ -6,6 +6,12 @@
 // ternary → unary ( ? ternary : ternary )
 // unary → ( "!" | "-" ) unary | primary ;
 // primary → NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" ;
+
+// program → statement* EOF ;
+// statement → exprStmt | printStmt ;
+// exprStmt → expression ";" ;
+// printStmt → "print" expression ";" ;
+
 package main
 
 import (
@@ -184,19 +190,33 @@ func (p *Parser) synchronize() {
 		case Print:
 			return
 		}
-
 		p.advance()
 	}
 }
 
-// func (p *Parser) statement() Statement {
+func (p *Parser) expressionStatement() Statement {
+	expression := p.expression()
+	p.consume(Semicolon, "Expect ';' after value")
+	return NewExpressionStatement(expression)
+}
 
-// }
+func (p *Parser) printStatement() Statement {
+	value := p.expression()
+	p.consume(Semicolon, "Expect ';' after value")
+	return NewPrintStatement(value)
+}
 
-func (p *Parser) parse() Expression {
-	// statements := []Statement{}
-	// for !p.isAtEnd() {
-	// 	statements = append(statements, p.statement())
-	// }
-	return p.expression()
+func (p *Parser) statement() Statement {
+	if p.match(Print) {
+		return p.printStatement()
+	}
+	return p.expressionStatement()
+}
+
+func (p *Parser) parse() []Statement {
+	statements := []Statement{}
+	for !p.isAtEnd() {
+		statements = append(statements, p.statement())
+	}
+	return statements
 }

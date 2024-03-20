@@ -28,10 +28,10 @@ func (l *Lng) run(source string) {
 		return
 	}
 	parser := NewParser(tokens)
-	expression := parser.parse()
+	statements := parser.parse()
 
 	interperter := NewInterpreter()
-	interperter.Interpret(expression)
+	interperter.interpret(statements)
 
 	// fmt.Println(ExpressionToString(expression))
 

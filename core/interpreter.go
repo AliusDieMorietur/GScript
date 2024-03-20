@@ -18,9 +18,10 @@ func NewInterpreter() Interpreter {
 	return Interpreter{}
 }
 
-func (i Interpreter) Interpret(expression Expression) {
-	value := i.evaluate(expression)
-	fmt.Println(fmt.Sprintf("RESULT: %v", value))
+func (i Interpreter) interpret(statements []Statement) {
+	for _, statement := range statements {
+		i.execute(statement)
+	}
 }
 
 func (i Interpreter) isTruthy(value any) bool {
@@ -41,6 +42,16 @@ func (i Interpreter) isEqual(a any, b any) bool {
 		return false
 	}
 	return a == b
+}
+
+func (i Interpreter) execute(statement Statement) {
+	switch option := statement.(type) {
+	case PrintStatement:
+		value := i.evaluate(option.expression)
+		fmt.Println(value)
+	case ExpressionStatement:
+		i.evaluate(option.expression)
+	}
 }
 
 func (i Interpreter) evaluate(expression Expression) any {
