@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -100,23 +101,25 @@ func (t Token) ToString() string {
 	return fmt.Sprintf("%s %d", t.tokenType, t.line)
 }
 
+func NewScannerError(line uint, message string, place string) error {
+	return u.NewError("[line %d] SyntaxError: %s > %s", line, message, place)
+}
+
 type Scanner struct {
 	source  string
 	start   uint
 	current uint
 	line    uint
 	tokens  []Token
-	onError func()
 }
 
-func NewScanner(source string, onError func()) Scanner {
+func NewScanner(source string) Scanner {
 	return Scanner{
 		source,
 		0,
 		0,
 		1,
 		[]Token{},
-		onError,
 	}
 }
 
@@ -159,7 +162,15 @@ func (s Scanner) peekNext() byte {
 	return s.source[s.current+1]
 }
 
-func (s *Scanner) string() {
+func (s Scanner) extractCurrentSlice() string {
+	sliceLen := uint(7)
+	sourceLen := uint(len(s.source))
+	start := u.Ternary(s.current < sliceLen, 0, s.current-sliceLen)
+	end := u.Ternary(start+sliceLen*2 > sourceLen, sourceLen, start+sliceLen*2)
+	return s.source[start:end]
+}
+
+func (s *Scanner) string() error {
 	for s.peek() != '"' && !s.isAtEnd() {
 		if s.peek() == '\n' {
 			s.line++
@@ -167,20 +178,19 @@ func (s *Scanner) string() {
 		s.advance()
 	}
 	if s.isAtEnd() {
-		u.Error(s.line, "Unterminated string.")
-		s.onError()
-		return
+		return NewScannerError(s.line, "Unterminated string", s.extractCurrentSlice())
 	}
 	s.advance()
 	value := s.source[s.start+1 : s.current-1]
 	s.addToken(String, value)
+	return nil
 }
 
 func (s *Scanner) isDigit(c byte) bool {
 	return unicode.IsDigit(rune(c))
 }
 
-func (s *Scanner) number() {
+func (s *Scanner) number() error {
 	for s.isDigit(s.peek()) {
 		s.advance()
 	}
@@ -191,8 +201,12 @@ func (s *Scanner) number() {
 		}
 	}
 	value := s.source[s.start:s.current]
-	float, _ := strconv.ParseFloat(value, 64)
+	float, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return err
+	}
 	s.addToken(Number, float)
+	return nil
 }
 
 func (s Scanner) isAlpha(char byte) bool {
@@ -216,22 +230,21 @@ func (s *Scanner) identifier() {
 	s.addToken(tokenType, "")
 }
 
-func (s *Scanner) scanToken() {
+func (s *Scanner) scanToken() error {
 	c := s.advance()
 	switch c {
 	case '&':
 		if s.match('&') {
 			s.addToken(And, "")
 		} else {
-			u.Error(s.line, "Unterminted &")
-			s.onError()
+			return errors.New("Unterminted &")
 		}
 	case '|':
 		if s.match('|') {
 			s.addToken(Or, "")
 		} else {
-			u.Error(s.line, "Unterminted |")
-			s.onError()
+			return errors.New("Unterminted |")
+
 		}
 	case '(':
 		s.addToken(LeftBrace, "")
@@ -286,21 +299,24 @@ func (s *Scanner) scanToken() {
 		s.string()
 	default:
 		if s.isDigit(c) {
-			s.number()
+			return s.number()
 		} else if s.isAlpha(c) {
 			s.identifier()
 		} else {
-			u.Error(s.line, fmt.Sprintf("Unexpected character \"%s\"", string(c)))
-			s.onError()
+			return NewScannerError(s.line, fmt.Sprintf("Unexpected character \"%s\"", string(c)), s.extractCurrentSlice())
 		}
 	}
+	return nil
 }
 
-func (s *Scanner) scanTokens() []Token {
+func (s *Scanner) scanTokens() (error, []Token) {
 	for !s.isAtEnd() {
 		s.start = s.current
-		s.scanToken()
+		err := s.scanToken()
+		if err != nil {
+			return err, s.tokens
+		}
 	}
-	s.tokens = append(s.tokens, NewToken(Eof, "", "", s.line))
-	return s.tokens
+	s.tokens = append(s.tokens, NewToken(Eof, "Eof", "", s.line))
+	return nil, s.tokens
 }

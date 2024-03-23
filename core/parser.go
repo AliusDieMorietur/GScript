@@ -18,6 +18,10 @@ import (
 	u "github.com/core/utils"
 )
 
+func NewParserError(message string) error {
+	return u.NewError("SyntaxError: %s", message)
+}
+
 type Parser struct {
 	tokens  []Token
 	current int
@@ -27,97 +31,140 @@ func NewParser(tokens []Token) Parser {
 	return Parser{tokens, 0}
 }
 
-func (p *Parser) expression() Expression {
+func (p *Parser) expression() (error, Expression) {
 	return p.equality()
 }
 
-func (p *Parser) equality() Expression {
-	expression := p.comparison()
+func (p *Parser) equality() (error, Expression) {
+	err, expression := p.comparison()
+
+	if err != nil {
+		return err, nil
+	}
 	for p.match(BangEqual, EqualEqual) {
 		operator := p.previous()
-		right := p.comparison()
+		err, right := p.comparison()
+		if err != nil {
+			return err, nil
+		}
 		expression = NewBinary(expression, operator, right)
 	}
-	return expression
+	return nil, expression
 }
 
-func (p *Parser) comparison() Expression {
-	expression := p.term()
+func (p *Parser) comparison() (error, Expression) {
+	err, expression := p.term()
+	if err != nil {
+		return err, nil
+	}
 	for p.match(Greater, GreaterEqual, Less, LessEqual) {
 		operator := p.previous()
-		right := p.term()
+		err, right := p.term()
+		if err != nil {
+			return err, nil
+		}
 		expression = NewBinary(expression, operator, right)
 	}
-	return expression
+	return nil, expression
 }
 
-func (p *Parser) term() Expression {
-	expression := p.factor()
+func (p *Parser) term() (error, Expression) {
+	err, expression := p.factor()
+	if err != nil {
+		return err, nil
+	}
 	for p.match(Minus, Plus) {
 		operator := p.previous()
-		right := p.factor()
+		err, right := p.factor()
+		if err != nil {
+			return err, nil
+		}
 		expression = NewBinary(expression, operator, right)
 	}
-	return expression
+	return nil, expression
 }
 
-func (p *Parser) factor() Expression {
-	expression := p.ternary()
+func (p *Parser) factor() (error, Expression) {
+	err, expression := p.ternary()
+	if err != nil {
+		return err, nil
+	}
 	for p.match(Star, Slash) {
 		operator := p.previous()
-		right := p.ternary()
+		err, right := p.ternary()
+		if err != nil {
+			return err, nil
+		}
 		expression = NewBinary(expression, operator, right)
 	}
-	return expression
+	return nil, expression
 }
 
-func (p *Parser) ternary() Expression {
-	left := p.unary()
+func (p *Parser) ternary() (error, Expression) {
+	err, left := p.unary()
+	if err != nil {
+		return err, nil
+	}
 	if p.match(Question) {
-		middle := p.ternary()
+		err, middle := p.ternary()
+		if err != nil {
+			return err, nil
+		}
 		if p.match(Colon) {
-			right := p.ternary()
-			return NewTernary(left, middle, right)
+			err, right := p.ternary()
+			if err != nil {
+				return err, nil
+			}
+			return nil, NewTernary(left, middle, right)
 		} else {
-			panic("Expected ':'")
+			return nil, NewParserError("Expected ':'")
 		}
 
 	}
-
-	return left
+	return nil, left
 }
 
-func (p *Parser) unary() Expression {
-
+func (p *Parser) unary() (error, Expression) {
 	for p.match(Minus, Plus) {
 		operator := p.previous()
-		right := p.unary()
-		return NewUnary(operator, right)
+		err, right := p.unary()
+		if err != nil {
+			return err, nil
+		}
+		return nil, NewUnary(operator, right)
 	}
-	return p.primary()
+	err, primary := p.primary()
+	if err != nil {
+		return err, nil
+	}
+	return nil, primary
 }
 
-func (p *Parser) primary() Expression {
+func (p *Parser) primary() (error, Expression) {
 	if p.match(False) {
-		return NewLiteral(false)
+		return nil, NewLiteral(false)
 	}
 	if p.match(True) {
-		return NewLiteral(true)
+		return nil, NewLiteral(true)
 	}
 	if p.match(Null) {
-		return NewLiteral(nil)
+		return nil, NewLiteral(nil)
 	}
 	if p.match(Number, String) {
-		return NewLiteral(p.previous().literal)
+		return nil, NewLiteral(p.previous().literal)
 	}
 	if p.match(LeftBrace) {
-		expression := p.expression()
-		p.consume(RightBrace, "Expect ')' after expression.")
-		return NewGrouping(expression)
+		expressionError, expression := p.expression()
+		if expressionError != nil {
+			return expressionError, nil
+		}
+		consumeError, _ := p.consume(Semicolon, "Expect ')' after expression.")
+		if consumeError != nil {
+			return consumeError, nil
+		}
+		return nil, NewGrouping(expression)
 	}
-	expression := p.expression()
-	return NewGrouping(expression)
-	// panic("Exprected expression")
+	return NewParserError("Unpredictable expression"), nil
 }
 
 func (p Parser) error(token Token, message string) {
@@ -128,12 +175,12 @@ func (p Parser) error(token Token, message string) {
 	}
 }
 
-func (p *Parser) consume(tokenType string, message string) Token {
+func (p *Parser) consume(tokenType string, message string) (error, Token) {
 	if p.check(tokenType) {
-		return p.advance()
+		return nil, p.advance()
 	}
-	p.error(p.peek(), message)
-	panic("Unpredictable expression in consume")
+	token := p.peek()
+	return NewParserError(message), token
 }
 
 func (p *Parser) match(tokenTypes ...string) bool {
@@ -194,29 +241,45 @@ func (p *Parser) synchronize() {
 	}
 }
 
-func (p *Parser) expressionStatement() Statement {
-	expression := p.expression()
-	p.consume(Semicolon, "Expect ';' after value")
-	return NewExpressionStatement(expression)
+func (p *Parser) expressionStatement() (error, Statement) {
+	expressionError, expression := p.expression()
+	if expressionError != nil {
+		return expressionError, nil
+	}
+	consumeError, _ := p.consume(Semicolon, "Expect ';' after value")
+	if consumeError != nil {
+		return consumeError, nil
+	}
+	return nil, NewExpressionStatement(expression)
 }
 
-func (p *Parser) printStatement() Statement {
-	value := p.expression()
-	p.consume(Semicolon, "Expect ';' after value")
-	return NewPrintStatement(value)
+func (p *Parser) printStatement() (error, Statement) {
+	expressionError, expression := p.expression()
+	if expressionError != nil {
+		return expressionError, nil
+	}
+	consumeError, _ := p.consume(Semicolon, "Expect ';' after value")
+	if consumeError != nil {
+		return consumeError, nil
+	}
+	return nil, NewPrintStatement(expression)
 }
 
-func (p *Parser) statement() Statement {
+func (p *Parser) statement() (error, Statement) {
 	if p.match(Print) {
 		return p.printStatement()
 	}
 	return p.expressionStatement()
 }
 
-func (p *Parser) parse() []Statement {
+func (p *Parser) parse() (error, []Statement) {
 	statements := []Statement{}
 	for !p.isAtEnd() {
-		statements = append(statements, p.statement())
+		err, statement := p.statement()
+		if err != nil {
+			return err, statements
+		}
+		statements = append(statements, statement)
 	}
-	return statements
+	return nil, statements
 }

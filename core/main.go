@@ -15,40 +15,43 @@ func NewLng() Lng {
 	return Lng{hadError: false}
 }
 
-func (l *Lng) run(source string) {
-	scanner := NewScanner(source, func() {
-		l.hadError = true
-	})
-	tokens := scanner.scanTokens()
-	// for _, token := range tokens {
-	// 	fmt.Println("Token", token.ToString())
-	// }
-	if l.hadError {
-		fmt.Println("LNG error end")
-		return
+func (l *Lng) run(source string) error {
+	scanner := NewScanner(source)
+	scanErr, tokens := scanner.scanTokens()
+	if scanErr != nil {
+		return scanErr
 	}
 	parser := NewParser(tokens)
-	statements := parser.parse()
-
+	parseErr, statements := parser.parse()
+	if parseErr != nil {
+		return parseErr
+	}
 	interperter := NewInterpreter()
-	interperter.interpret(statements)
-
-	// fmt.Println(ExpressionToString(expression))
-
+	interpretErr := interperter.interpret(statements)
+	if interpretErr != nil {
+		return interpretErr
+	}
+	return nil
 }
 
 func (l *Lng) runFile(filePath string) {
 	data, _ := os.ReadFile(filePath)
-	l.run(string(data))
+	err := l.run(string(data))
+	if err != nil {
+		fmt.Println(err)
+	}
 }
 
 func (l *Lng) runPrompt() {
 	reader := bufio.NewReader(os.Stdin)
 	fmt.Print("> ")
 	text, _ := reader.ReadString('\n')
-	l.run(text)
 	if strings.Trim(text, "\n") == "exit" {
 		return
+	}
+	err := l.run(text)
+	if err != nil {
+		fmt.Println(err)
 	}
 	l.runPrompt()
 }

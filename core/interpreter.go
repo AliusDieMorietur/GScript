@@ -11,6 +11,18 @@ import (
 	u "github.com/core/utils"
 )
 
+func performBinaryNumberOperation(left any, right any, operation func(lhs float64, rhs float64) any) (error, any) {
+	leftErr, lhs := u.AsFloat(left)
+	if leftErr != nil {
+		return leftErr, nil
+	}
+	rightErr, rhs := u.AsFloat(right)
+	if rightErr != nil {
+		return rightErr, nil
+	}
+	return nil, operation(lhs, rhs)
+}
+
 type Interpreter struct {
 }
 
@@ -18,10 +30,14 @@ func NewInterpreter() Interpreter {
 	return Interpreter{}
 }
 
-func (i Interpreter) interpret(statements []Statement) {
+func (i Interpreter) interpret(statements []Statement) error {
 	for _, statement := range statements {
-		i.execute(statement)
+		err := i.execute(statement)
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 func (i Interpreter) isTruthy(value any) bool {
@@ -44,69 +60,112 @@ func (i Interpreter) isEqual(a any, b any) bool {
 	return a == b
 }
 
-func (i Interpreter) execute(statement Statement) {
+func (i Interpreter) execute(statement Statement) error {
 	switch option := statement.(type) {
 	case PrintStatement:
-		value := i.evaluate(option.expression)
+		err, value := i.evaluate(option.expression)
+		if err != nil {
+			return err
+		}
 		fmt.Println(value)
 	case ExpressionStatement:
-		i.evaluate(option.expression)
+		err, _ := i.evaluate(option.expression)
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
-func (i Interpreter) evaluate(expression Expression) any {
+func (i Interpreter) evaluate(expression Expression) (error, any) {
 	switch option := expression.(type) {
 	// case Ternary:
 	// 	return ExpressionToString(value.left) + " ? " + ExpressionToString(value.middle) + " : " + ExpressionToString(value.right)
 	case Binary:
-		left := i.evaluate(option.left)
-		right := i.evaluate(option.right)
+		leftErr, left := i.evaluate(option.left)
+		if leftErr != nil {
+			return leftErr, nil
+		}
+		rightErr, right := i.evaluate(option.right)
+		if rightErr != nil {
+			return rightErr, nil
+		}
 		switch operator := option.operator.tokenType; operator {
 		case Greater:
-			return u.AsFloat(left) > u.AsFloat(right)
+			return performBinaryNumberOperation(left, right, func(lhs float64, rhs float64) any {
+				return lhs > rhs
+			})
 		case GreaterEqual:
-			return u.AsFloat(left) >= u.AsFloat(right)
+			return performBinaryNumberOperation(left, right, func(lhs float64, rhs float64) any {
+				return lhs >= rhs
+			})
 		case Less:
-			return u.AsFloat(left) < u.AsFloat(right)
+			return performBinaryNumberOperation(left, right, func(lhs float64, rhs float64) any {
+				return lhs < rhs
+			})
 		case LessEqual:
-			return u.AsFloat(left) <= u.AsFloat(right)
+			return performBinaryNumberOperation(left, right, func(lhs float64, rhs float64) any {
+				return lhs <= rhs
+			})
 		case BangEqual:
-			return !i.isEqual(left, right)
+			return nil, !i.isEqual(left, right)
 		case EqualEqual:
-			return i.isEqual(left, right)
+			return nil, i.isEqual(left, right)
 		case Minus:
-			return u.AsFloat(left) - u.AsFloat(right)
+			return performBinaryNumberOperation(left, right, func(lhs float64, rhs float64) any {
+				return lhs - rhs
+			})
 		case Star:
-			return u.AsFloat(left) * u.AsFloat(right)
+			return performBinaryNumberOperation(left, right, func(lhs float64, rhs float64) any {
+				return lhs * rhs
+			})
 		case Slash:
-			return u.AsFloat(left) / u.AsFloat(right)
+			return performBinaryNumberOperation(left, right, func(lhs float64, rhs float64) any {
+				return lhs / rhs
+			})
 		case Plus:
 			if u.IsString(left) && u.IsString(right) {
-				return u.AsString(left) + u.AsString(right)
+				lhs := u.AsString(left)
+				rhs := u.AsString(right)
+				return nil, lhs + rhs
 			}
 			if u.IsFloat(left) && u.IsFloat(right) {
-				return u.AsFloat(left) + u.AsFloat(right)
+				leftErr, lhs := u.AsFloat(left)
+				if leftErr != nil {
+					return leftErr, nil
+				}
+				rightErr, rhs := u.AsFloat(right)
+				if rightErr != nil {
+					return rightErr, nil
+				}
+				return nil, lhs + rhs
 			}
-			panic(fmt.Sprintf("Unexpected plus types T1:'%T' T2:'%T'", left, right))
+			return u.NewError("Unexpected plus types T1:'%T' T2:'%T'", left, right), nil
 		default:
-			panic(fmt.Sprintf("Unexpected binary operator '%v'", operator))
+			return u.NewError("Unexpected binary operator '%v'", operator), nil
 		}
 	case Unary:
-		right := i.evaluate(option.right)
+		rightErr, right := i.evaluate(option.right)
+		if rightErr != nil {
+			return rightErr, nil
+		}
 		switch operator := option.operator.tokenType; operator {
 		case Minus:
-			rhs := u.AsFloat(right)
-			return -rhs
+			err, rhs := u.AsFloat(right)
+			if err != nil {
+				return err, nil
+			}
+			return nil, -rhs
 		case Bang:
-			return i.isTruthy(right)
+			return nil, i.isTruthy(right)
 		default:
-			panic(fmt.Sprintf("Unexpected unary operator '%v'", operator))
+			return u.NewError("Unexpected unary operator '%v'", operator), nil
 		}
 	case Grouping:
 		return i.evaluate(option.expression)
 	case Literal:
-		return option.value
+		return nil, option.value
 	default:
-		panic("Unreachable evaluate")
+		return u.NewError("Unreachable evaluate"), nil
 	}
 }

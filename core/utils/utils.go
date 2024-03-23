@@ -1,9 +1,19 @@
 package utils
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 )
+
+func ReturnFirstError(values ...any) error {
+	for _, value := range values {
+		if err, ok := value.(error); ok {
+			return err
+		}
+	}
+	return nil
+}
 
 func Ternary[T any](condition bool, a T, b T) T {
 	if condition {
@@ -11,6 +21,10 @@ func Ternary[T any](condition bool, a T, b T) T {
 	} else {
 		return b
 	}
+}
+
+func NewError(format string, args ...any) error {
+	return errors.New( fmt.Sprintf(format, args...))
 }
 
 func Error(line uint, message string) {
@@ -27,16 +41,18 @@ func Expect( err error, msg string) {
 	}
 }
 
-func AsFloat(value any) float64 {
+func AsFloat(value any) (error, float64) {
 	if stringValue, ok := value.(string); ok {
 		value, err := strconv.ParseFloat(stringValue, 64)
-		Expect(err, "Can't parse float")
-		return value
+		if (err != nil) {
+			return NewError("Can't parse float"), 0.0
+		}
+		return nil, value
 	}
 	if floatValue, ok := value.(float64); ok {
-		return floatValue
+		return nil, floatValue
 	}
-	panic(fmt.Sprint("Unexpected value type for float cast '%T'", value))
+	return NewError("Unexpected value type for float cast '%T'", value), 0.0
 }
 
 func AsString(value any) string {
