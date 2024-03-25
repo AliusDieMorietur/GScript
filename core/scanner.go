@@ -101,8 +101,8 @@ func (t Token) ToString() string {
 	return fmt.Sprintf("%s %d", t.tokenType, t.line)
 }
 
-func NewScannerError(line uint, message string, place string) error {
-	return u.NewError("[line %d] SyntaxError: %s > %s", line, message, place)
+func NewScannerError(message string) error {
+	return u.NewError(" SyntaxError: %s", message)
 }
 
 type Scanner struct {
@@ -178,7 +178,7 @@ func (s *Scanner) string() error {
 		s.advance()
 	}
 	if s.isAtEnd() {
-		return NewScannerError(s.line, "Unterminated string", s.extractCurrentSlice())
+		return NewScannerError("Unterminated string")
 	}
 	s.advance()
 	value := s.source[s.start+1 : s.current-1]
@@ -303,7 +303,7 @@ func (s *Scanner) scanToken() error {
 		} else if s.isAlpha(c) {
 			s.identifier()
 		} else {
-			return NewScannerError(s.line, fmt.Sprintf("Unexpected character \"%s\"", string(c)), s.extractCurrentSlice())
+			return NewScannerError(fmt.Sprintf("Unexpected character \"%s\"", string(c)))
 		}
 	}
 	return nil

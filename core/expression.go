@@ -62,3 +62,28 @@ func NewUnary(operator Token, right Expression) Unary {
 		right,
 	}
 }
+
+type Variable struct {
+	name Token
+}
+
+func NewVariable(name Token) Variable {
+	return Variable{
+		name,
+	}
+}
+
+type Assignment struct {
+	name Token
+	value Expression
+}
+
+func NewAssignment(name Token, value Expression) Assignment {
+	return Assignment{
+		name,
+		value,
+	}
+}
+
+
+

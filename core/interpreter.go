@@ -1,8 +1,3 @@
-// program → statement* EOF ;
-// statement → exprStmt | printStmt ;
-// exprStmt → expression ";" ;
-// printStmt → "print" expression ";" ;
-
 package main
 
 import (
@@ -24,13 +19,16 @@ func performBinaryNumberOperation(left any, right any, operation func(lhs float6
 }
 
 type Interpreter struct {
+	environment Environment
 }
 
 func NewInterpreter() Interpreter {
-	return Interpreter{}
+	return Interpreter{
+		environment: NewEnvironment(),
+	}
 }
 
-func (i Interpreter) interpret(statements []Statement) error {
+func (i *Interpreter) interpret(statements []Statement) error {
 	for _, statement := range statements {
 		err := i.execute(statement)
 		if err != nil {
@@ -60,8 +58,18 @@ func (i Interpreter) isEqual(a any, b any) bool {
 	return a == b
 }
 
-func (i Interpreter) execute(statement Statement) error {
+func (i *Interpreter) execute(statement Statement) error {
 	switch option := statement.(type) {
+	case LetStatement: 
+		var value any
+		if (option.initializer != nil) {
+			err, result := i.evaluate(option.initializer)
+			if (err != nil) {
+				return nil
+			}
+			value = result
+		}
+		i.environment.define(option.name.lexeme, value)
 	case PrintStatement:
 		err, value := i.evaluate(option.expression)
 		if err != nil {
@@ -81,6 +89,15 @@ func (i Interpreter) evaluate(expression Expression) (error, any) {
 	switch option := expression.(type) {
 	// case Ternary:
 	// 	return ExpressionToString(value.left) + " ? " + ExpressionToString(value.middle) + " : " + ExpressionToString(value.right)
+	case Variable: 
+		return i.environment.get(option.name)
+	case Assignment: 
+		err, value := i.evaluate(option.value)
+		if (err != nil ) {
+			return err, nil
+		}
+		i.environment.define(option.name.lexeme, value)
+		return nil, value
 	case Binary:
 		leftErr, left := i.evaluate(option.left)
 		if leftErr != nil {

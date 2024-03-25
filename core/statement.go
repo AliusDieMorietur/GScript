@@ -22,3 +22,15 @@ func NewExpressionStatement(expression Expression) ExpressionStatement {
 		expression,
 	}
 }
+
+type LetStatement struct {
+	name       Token
+	initializer Expression
+}
+
+func NewLetStatement(name Token, initializer Expression) LetStatement {
+	return LetStatement{
+		name,
+		initializer,
+	}
+}

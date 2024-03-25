@@ -1,16 +1,19 @@
-// expression → equality ;
+// expression → assignment ;
+// assignment → IDENTIFIER "=" assignment | equality ;
 // equality → comparison ( ( "!=" | "==" ) comparison )* ;
 // comparison → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 // term → factor ( ( "-" | "+" ) factor )* ;
 // factor → ternary ( ( "/" | "*" ) ternary )* ;
 // ternary → unary ( ? ternary : ternary )
 // unary → ( "!" | "-" ) unary | primary ;
-// primary → NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" ;
+// primary → NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" | IDENTIFIER  ;
 
-// program → statement* EOF ;
+// program → declaration* EOF ;
+// declaration → letDecl | statement ;
 // statement → exprStmt | printStmt ;
 // exprStmt → expression ";" ;
 // printStmt → "print" expression ";" ;
+// letDecl → "let" IDENTIFIER ( "=" expression )? ";" ;
 
 package main
 
@@ -32,7 +35,28 @@ func NewParser(tokens []Token) Parser {
 }
 
 func (p *Parser) expression() (error, Expression) {
-	return p.equality()
+	return p.assignment()
+}
+
+func (p *Parser) assignment() (error, Expression) {
+	err, expression := p.equality()
+	if (err != nil) {
+		return err, expression
+	}
+	if (p.match(Equal)) {
+		err, value := p.assignment()
+		if (err != nil) {
+			return err, expression
+		}
+
+		if variable, ok := expression.(Variable); ok {
+			name := variable.name
+			return nil, NewAssignment(name, value)
+		}
+
+		return NewParserError("Invalid assignment target"),nil
+	}
+	return nil, expression
 }
 
 func (p *Parser) equality() (error, Expression) {
@@ -153,6 +177,9 @@ func (p *Parser) primary() (error, Expression) {
 	if p.match(Number, String) {
 		return nil, NewLiteral(p.previous().literal)
 	}
+	if p.match(Identifier) {
+		return nil, NewVariable(p.previous())
+	}
 	if p.match(LeftBrace) {
 		expressionError, expression := p.expression()
 		if expressionError != nil {
@@ -165,14 +192,6 @@ func (p *Parser) primary() (error, Expression) {
 		return nil, NewGrouping(expression)
 	}
 	return NewParserError("Unpredictable expression"), nil
-}
-
-func (p Parser) error(token Token, message string) {
-	if token.tokenType == Eof {
-		u.Report(token.line, " at end", message)
-	} else {
-		u.Report(token.line, " at '"+token.lexeme+"'", message)
-	}
 }
 
 func (p *Parser) consume(tokenType string, message string) (error, Token) {
@@ -272,14 +291,51 @@ func (p *Parser) statement() (error, Statement) {
 	return p.expressionStatement()
 }
 
+func (p *Parser) letDeclaration() (error, Statement) {
+	identifierErr, name := p.consume(Identifier, "Variable name expected")
+	if identifierErr != nil {
+		return identifierErr, nil
+	}
+	var initializer Expression
+	if p.match(Equal) {
+		err, expression := p.expression()
+		if err != nil {
+			return err, nil
+		}
+		initializer = expression
+	}
+	err, _ := p.consume(Semicolon, "Expect ';' after variable declaration.")
+	if err != nil {
+		return err, nil
+	}
+	return nil, NewLetStatement(name, initializer)
+}
+
+func (p *Parser) declaration() (error, Statement) {
+	if p.match(Let) {
+		err, declaration := p.letDeclaration()
+		if err != nil {
+			// p.synchronize()
+			return err, nil
+		}
+		return nil, declaration
+	}
+	err, statement := p.statement()
+	if err != nil {
+		// p.synchronize()
+		return err, nil
+	}
+	return nil, statement
+}
+
 func (p *Parser) parse() (error, []Statement) {
 	statements := []Statement{}
 	for !p.isAtEnd() {
-		err, statement := p.statement()
+		err, declaration := p.declaration()
 		if err != nil {
 			return err, statements
 		}
-		statements = append(statements, statement)
+		statements = append(statements, declaration)
 	}
 	return nil, statements
 }
