@@ -1,0 +1,10 @@
+print 2; 
+print 4 - 3 * 10;
+print "asdf13";
+print true;
+let a = 3;
+print a;
+let a = 4;
+print a;
+let b = 3;
+print a + b;
