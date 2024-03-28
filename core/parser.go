@@ -1,16 +1,20 @@
 // expression → assignment ;
-// assignment → IDENTIFIER "=" assignment | equality ;
+// assignment → IDENTIFIER "=" assignment | ternary ;
+// ternary → logicOr ( ? ternary : ternary ) ;
+// logicOr → logicAnd ( || logicAnd )*;
+// logicAnd → equality ( && equality  )*;
 // equality → comparison ( ( "!=" | "==" ) comparison )* ;
 // comparison → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 // term → factor ( ( "-" | "+" ) factor )* ;
-// factor → ternary ( ( "/" | "*" ) ternary )* ;
-// ternary → unary ( ? ternary : ternary )
+// factor → unary ( ( "/" | "*" ) unary )* ;
 // unary → ( "!" | "-" ) unary | primary ;
 // primary → NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" | IDENTIFIER  ;
 
 // program → declaration* EOF ;
 // declaration → letDecl | statement ;
-// statement → exprStmt | printStmt ;
+// statement → exprStmt | ifStmt | printStmt | block ;
+// block → "{" declaration* "}"
+// ifStmt → "if" "(" expression ")" ( "else" "if" "(" expreesion ")" )* statement ( "else" statement )? ;
 // exprStmt → expression ";" ;
 // printStmt → "print" expression ";" ;
 // letDecl → "let" IDENTIFIER ( "=" expression )? ";" ;
@@ -39,13 +43,13 @@ func (p *Parser) expression() (error, Expression) {
 }
 
 func (p *Parser) assignment() (error, Expression) {
-	err, expression := p.equality()
-	if (err != nil) {
+	err, expression := p.ternary()
+	if err != nil {
 		return err, expression
 	}
-	if (p.match(Equal)) {
+	if p.match(Equal) {
 		err, value := p.assignment()
-		if (err != nil) {
+		if err != nil {
 			return err, expression
 		}
 
@@ -54,7 +58,62 @@ func (p *Parser) assignment() (error, Expression) {
 			return nil, NewAssignment(name, value)
 		}
 
-		return NewParserError("Invalid assignment target"),nil
+		return NewParserError("Invalid assignment target"), nil
+	}
+	return nil, expression
+}
+
+func (p *Parser) ternary() (error, Expression) {
+	err, left := p.or()
+	if err != nil {
+		return err, nil
+	}
+	if p.match(Question) {
+		err, middle := p.ternary()
+		if err != nil {
+			return err, nil
+		}
+		if p.match(Colon) {
+			err, right := p.ternary()
+			if err != nil {
+				return err, nil
+			}
+			return nil, NewTernary(left, middle, right)
+		} else {
+			return nil, NewParserError("Expected ':'")
+		}
+	}
+	return nil, left
+}
+
+func (p *Parser) or() (error, Expression) {
+	err, expression := p.and()
+	if err != nil {
+		return err, nil
+	}
+	for p.match(Or) {
+		operator := p.previous()
+		err, right := p.and()
+		if err != nil {
+			return err, nil
+		}
+		expression = NewLogical(expression, operator, right)
+	}
+	return nil, expression
+}
+
+func (p *Parser) and() (error, Expression) {
+	err, expression := p.equality()
+	if err != nil {
+		return err, nil
+	}
+	for p.match(And) {
+		operator := p.previous()
+		err, right := p.equality()
+		if err != nil {
+			return err, nil
+		}
+		expression = NewLogical(expression, operator, right)
 	}
 	return nil, expression
 }
@@ -109,43 +168,19 @@ func (p *Parser) term() (error, Expression) {
 }
 
 func (p *Parser) factor() (error, Expression) {
-	err, expression := p.ternary()
+	err, expression := p.unary()
 	if err != nil {
 		return err, nil
 	}
 	for p.match(Star, Slash) {
 		operator := p.previous()
-		err, right := p.ternary()
+		err, right := p.unary()
 		if err != nil {
 			return err, nil
 		}
 		expression = NewBinary(expression, operator, right)
 	}
 	return nil, expression
-}
-
-func (p *Parser) ternary() (error, Expression) {
-	err, left := p.unary()
-	if err != nil {
-		return err, nil
-	}
-	if p.match(Question) {
-		err, middle := p.ternary()
-		if err != nil {
-			return err, nil
-		}
-		if p.match(Colon) {
-			err, right := p.ternary()
-			if err != nil {
-				return err, nil
-			}
-			return nil, NewTernary(left, middle, right)
-		} else {
-			return nil, NewParserError("Expected ':'")
-		}
-
-	}
-	return nil, left
 }
 
 func (p *Parser) unary() (error, Expression) {
@@ -185,7 +220,7 @@ func (p *Parser) primary() (error, Expression) {
 		if expressionError != nil {
 			return expressionError, nil
 		}
-		consumeError, _ := p.consume(Semicolon, "Expect ')' after expression.")
+		consumeError, _ := p.consume(RightBrace, "Expect ')' after expression.")
 		if consumeError != nil {
 			return consumeError, nil
 		}
@@ -284,7 +319,58 @@ func (p *Parser) printStatement() (error, Statement) {
 	return nil, NewPrintStatement(expression)
 }
 
+func (p *Parser) block() (error, []Statement) {
+	statements := []Statement{}
+	for !p.check(RightCurlyBrace) && !p.isAtEnd() {
+		err, statement := p.declaration()
+		if err != nil {
+			return err, statements
+		}
+		statements = append(statements, statement)
+	}
+	p.consume(RightCurlyBrace, "Expect '}' after block")
+	return nil, statements
+}
+
+func (p *Parser) ifStatement() (error, Statement) {
+	consumeErrLeft, _ := p.consume(LeftBrace, "Expected '('")
+	if consumeErrLeft != nil {
+		return consumeErrLeft, nil
+	}
+	conditionErr, condition := p.expression()
+	if conditionErr != nil {
+		return conditionErr, nil
+	}
+	consumeErrRight, _ := p.consume(RightBrace, "Expected ')'")
+	if consumeErrRight != nil {
+		return consumeErrRight, nil
+	}
+	err, thenBranch := p.statement()
+	if err != nil {
+		return err, nil
+	}
+	var elseBranch Statement
+	if p.match(Else) {
+		err, statement := p.statement()
+		if err != nil {
+			return err, nil
+		}
+		elseBranch = statement
+	}
+	return nil, NewIfStatement(condition, thenBranch, elseBranch)
+}
+
 func (p *Parser) statement() (error, Statement) {
+	if p.match(If) {
+		return p.ifStatement()
+	}
+	if p.match(LeftCurlyBracket) {
+		err, statements := p.block()
+		if err != nil {
+			return err, nil
+		}
+		return nil, NewBlockStatement(statements)
+	}
 	if p.match(Print) {
 		return p.printStatement()
 	}

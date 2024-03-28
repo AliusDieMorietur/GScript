@@ -63,22 +63,4 @@ func main() {
 	} else {
 		lng.runPrompt()
 	}
-	// expression := NewBinary(
-	// 	NewUnary(
-	// 		NewToken(Minus, "-", nil, 1),
-	// 		NewLiteral(123)),
-	// 	NewToken(Star, "*", nil, 1),
-	// 	NewGrouping(
-	// 		NewLiteral(45.67)))
-
-	// expression := NewBinary(
-	// 	NewGrouping(
-	// 		NewBinary(NewLiteral(1), NewToken(Minus, "-", nil, 1), NewLiteral(2)),
-	// 	),
-	// 	NewToken(Star, "*", nil, 1),
-	// 	NewGrouping(
-	// 		NewBinary(NewLiteral(3), NewToken(Plus, "+", nil, 1), NewLiteral(4)),
-	// 	))
-
-	// fmt.Println(ExpressionToString(expression))
 }

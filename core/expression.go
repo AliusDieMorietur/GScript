@@ -74,7 +74,7 @@ func NewVariable(name Token) Variable {
 }
 
 type Assignment struct {
-	name Token
+	name  Token
 	value Expression
 }
 
@@ -85,5 +85,36 @@ func NewAssignment(name Token, value Expression) Assignment {
 	}
 }
 
+type Logical struct {
+	left     Expression
+	operator Token
+	right    Expression
+}
 
+func NewLogical(left Expression, operator Token, right Expression) Logical {
+	return Logical{
+		left,
+		operator,
+		right,
+	}
+}
 
+func findToken(token Token, expression Expression) bool {
+	switch option := expression.(type) {
+	case Assignment:
+		if option.name.lexeme != token.lexeme {
+			return findToken(token, option.value)
+		}
+		return true
+	case Variable:
+		return option.name.lexeme == token.lexeme
+	case Unary:
+		return findToken(token, option.right)
+	case Binary:
+		return findToken(token, option.left) || findToken(token, option.right)
+	case Grouping:
+		return findToken(token, option.expression)
+	default:
+		return false
+	}
+}

@@ -19,12 +19,13 @@ func performBinaryNumberOperation(left any, right any, operation func(lhs float6
 }
 
 type Interpreter struct {
-	environment Environment
+	environment *Environment
 }
 
 func NewInterpreter() Interpreter {
+	environment := NewEnvironment(nil)
 	return Interpreter{
-		environment: NewEnvironment(),
+		environment: &environment,
 	}
 }
 
@@ -58,14 +59,49 @@ func (i Interpreter) isEqual(a any, b any) bool {
 	return a == b
 }
 
+func (i *Interpreter) executeBlock(statements []Statement, env *Environment) error {
+	previous := i.environment
+	i.environment = env
+	for _, statement := range statements {
+		err := i.execute(statement)
+		if err != nil {
+			i.environment = previous
+			return err
+		}
+	}
+	i.environment = previous
+	return nil
+}
+
 func (i *Interpreter) execute(statement Statement) error {
 	switch option := statement.(type) {
-	case LetStatement: 
+	case BlockStatement:
+		env := NewEnvironment(i.environment)
+		err := i.executeBlock(option.statements, &env)
+		if err != nil {
+			return err
+		}
+	case IfElseStatement:
+		err, result := i.evaluate(option.condition)
+		if err != nil {
+			return err
+		}
+		if i.isTruthy(result) {
+			i.execute(option.thenBranch)
+		} else {
+			if option.elseBranch != nil {
+				i.execute(option.elseBranch)
+			}
+		}
+	case LetStatement:
 		var value any
-		if (option.initializer != nil) {
+		if option.initializer != nil {
+			// if (findToken(option.name, option.initializer)) {
+			// 	return u.NewError("Access variable '%v' before declaration", option.name.lexeme)
+			// }
 			err, result := i.evaluate(option.initializer)
-			if (err != nil) {
-				return nil
+			if err != nil {
+				return err
 			}
 			value = result
 		}
@@ -87,16 +123,50 @@ func (i *Interpreter) execute(statement Statement) error {
 
 func (i Interpreter) evaluate(expression Expression) (error, any) {
 	switch option := expression.(type) {
-	// case Ternary:
-	// 	return ExpressionToString(value.left) + " ? " + ExpressionToString(value.middle) + " : " + ExpressionToString(value.right)
-	case Variable: 
-		return i.environment.get(option.name)
-	case Assignment: 
-		err, value := i.evaluate(option.value)
-		if (err != nil ) {
+	case Logical:
+		err, left := i.evaluate(option.left)
+		if err != nil {
 			return err, nil
 		}
-		i.environment.define(option.name.lexeme, value)
+		if option.operator.tokenType == Or {
+			if i.isTruthy(left) {
+				return nil, left
+			}
+		} else {
+			if !i.isTruthy(left) {
+				return nil, left
+			}
+		}
+		return i.evaluate(option.right)
+	case Ternary:
+		leftErr, left := i.evaluate(option.left)
+		if leftErr != nil {
+			return leftErr, nil
+		}
+		if i.isTruthy(left) {
+			middleErr, middle := i.evaluate(option.middle)
+			if middleErr != nil {
+				return middleErr, nil
+			}
+			return nil, middle
+		} else {
+			rightErr, right := i.evaluate(option.right)
+			if rightErr != nil {
+				return rightErr, nil
+			}
+			return nil, right
+		}
+	case Variable:
+		return i.environment.get(option.name)
+	case Assignment:
+		err, value := i.evaluate(option.value)
+		if err != nil {
+			return err, nil
+		}
+		assignErr := i.environment.assign(option.name.lexeme, value)
+		if assignErr != nil {
+			return assignErr, nil
+		}
 		return nil, value
 	case Binary:
 		leftErr, left := i.evaluate(option.left)

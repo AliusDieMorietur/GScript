@@ -24,7 +24,7 @@ func Ternary[T any](condition bool, a T, b T) T {
 }
 
 func NewError(format string, args ...any) error {
-	return errors.New( fmt.Sprintf(format, args...))
+	return errors.New(fmt.Sprintf(format, args...))
 }
 
 func Error(line uint, message string) {
@@ -35,7 +35,7 @@ func Report(line uint, place string, message string) {
 	fmt.Println(fmt.Sprintf("[line %d] Error%s: %s", line, place, message))
 }
 
-func Expect( err error, msg string) {
+func Expect(err error, msg string) {
 	if err != nil {
 		panic(msg)
 	}
@@ -44,7 +44,7 @@ func Expect( err error, msg string) {
 func AsFloat(value any) (error, float64) {
 	if stringValue, ok := value.(string); ok {
 		value, err := strconv.ParseFloat(stringValue, 64)
-		if (err != nil) {
+		if err != nil {
 			return NewError("Can't parse float"), 0.0
 		}
 		return nil, value
@@ -63,11 +63,12 @@ func AsString(value any) string {
 }
 
 func IsString(value any) bool {
-	_, ok := value.(string);
-		return ok
+	_, ok := value.(string)
+	return ok
 }
 
 func IsFloat(value any) bool {
-	_, ok := value.(float64);
-		return ok
+	_, ok := value.(float64)
+	return ok
 }
+

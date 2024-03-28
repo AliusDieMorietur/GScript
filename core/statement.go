@@ -24,7 +24,7 @@ func NewExpressionStatement(expression Expression) ExpressionStatement {
 }
 
 type LetStatement struct {
-	name       Token
+	name        Token
 	initializer Expression
 }
 
@@ -34,3 +34,50 @@ func NewLetStatement(name Token, initializer Expression) LetStatement {
 		initializer,
 	}
 }
+
+type BlockStatement struct {
+	statements []Statement
+}
+
+func NewBlockStatement(statements []Statement) BlockStatement {
+	return BlockStatement{
+		statements,
+	}
+}
+
+type IfElseBranch struct {
+	condition Expression
+	branch    Statement
+}
+
+type IfElseStatement struct {
+	condition  Expression
+	thenBranch Statement
+	// elseIfs []IfElseBranch
+	elseBranch Statement
+}
+
+func NewIfStatement(condition Expression,
+	thenBranch Statement,
+	// elseIfs []IfElseBranch,
+	elseBranch Statement) IfElseStatement {
+	return IfElseStatement{
+		condition,
+		thenBranch,
+		// elseIfs,
+		elseBranch,
+	}
+}
+
+// func StringifyStatement[T Statement | []Statement](value T) string{
+// 	switch option := any(value).(type) {
+// 	case Statement:
+// 		 switch
+// 	case []Statement:
+// 		for statement := range option {
+// 			return StringifyStatement(statement)
+// 		}
+// 	}
+
+// 	return ""
+// }
