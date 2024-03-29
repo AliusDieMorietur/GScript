@@ -6,6 +6,9 @@ import (
 	u "github.com/core/utils"
 )
 
+const BreakError = "Break outside loop"
+const ContinueError = "Continue outside loop"
+
 func performBinaryNumberOperation(left any, right any, operation func(lhs float64, rhs float64) any) (error, any) {
 	leftErr, lhs := u.AsFloat(left)
 	if leftErr != nil {
@@ -75,22 +78,96 @@ func (i *Interpreter) executeBlock(statements []Statement, env *Environment) err
 
 func (i *Interpreter) execute(statement Statement) error {
 	switch option := statement.(type) {
+	case BreakStatement:
+		return u.NewError(BreakError)
+	case ContinueStatement:
+		return u.NewError(ContinueError)
 	case BlockStatement:
 		env := NewEnvironment(i.environment)
 		err := i.executeBlock(option.statements, &env)
 		if err != nil {
 			return err
 		}
+		return nil
+	case ForStatement:
+		initializerErr := i.execute(option.initializer)
+		if initializerErr != nil {
+			return initializerErr
+		}
+		conditionErr, condition := i.evaluate(option.condition)
+		if conditionErr != nil {
+			return conditionErr
+		}
+		next := func() error {
+			conditionErr, _ = i.evaluate(option.increment)
+			if conditionErr != nil {
+				return conditionErr
+			}
+			conditionErr, condition = i.evaluate(option.condition)
+			if conditionErr != nil {
+				return conditionErr
+			}
+			return nil
+		}
+		for i.isTruthy(condition) {
+			loopErr := i.execute(option.statement)
+			if loopErr != nil {
+				if loopErr.Error() == ContinueError {
+					err := next()
+					if err != nil {
+						return err
+					}
+					continue
+				}
+				if loopErr.Error() == BreakError {
+					break
+				}
+				return loopErr
+			}
+			err := next()
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	case WhileStatement:
+		conditionErr, condition := i.evaluate(option.condition)
+		if conditionErr != nil {
+			return conditionErr
+		}
+		for i.isTruthy(condition) {
+			loopErr := i.execute(option.statement)
+			if loopErr != nil {
+				if loopErr.Error() == ContinueError {
+					continue
+				}
+				if loopErr.Error() == BreakError {
+					break
+				}
+				return loopErr
+			}
+			conditionErr, condition = i.evaluate(option.condition)
+			if conditionErr != nil {
+				return conditionErr
+			}
+		}
+		return nil
 	case IfElseStatement:
 		err, result := i.evaluate(option.condition)
 		if err != nil {
 			return err
 		}
 		if i.isTruthy(result) {
-			i.execute(option.thenBranch)
+			err := i.execute(option.thenBranch)
+			if err != nil {
+				return err
+			}
 		} else {
 			if option.elseBranch != nil {
-				i.execute(option.elseBranch)
+				err := i.execute(option.elseBranch)
+				if err != nil {
+					return err
+				}
 			}
 		}
 	case LetStatement:

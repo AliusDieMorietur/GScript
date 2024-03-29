@@ -12,9 +12,11 @@
 
 // program → declaration* EOF ;
 // declaration → letDecl | statement ;
-// statement → exprStmt | ifStmt | printStmt | block ;
+// statement → exprStmt | forStmt | ifStmt | printStmt | whileStmt | block ;
+// forStmt → "for" "(" ( letDecl | exprStmt | ";" ) expression? ";" expression? ")" statement ;
+// whileStmt → "while" "(" expression ")" statement ;
 // block → "{" declaration* "}"
-// ifStmt → "if" "(" expression ")" ( "else" "if" "(" expreesion ")" )* statement ( "else" statement )? ;
+// ifStmt → "if" "(" expression ")" ( "else" "if" "(" expression ")" )* statement ( "else" statement )? ;
 // exprStmt → expression ";" ;
 // printStmt → "print" expression ";" ;
 // letDecl → "let" IDENTIFIER ( "=" expression )? ";" ;
@@ -360,7 +362,68 @@ func (p *Parser) ifStatement() (error, Statement) {
 	return nil, NewIfStatement(condition, thenBranch, elseBranch)
 }
 
+func (p *Parser) whileStatement() (error, Statement) {
+	consumeErrLeft, _ := p.consume(LeftBrace, "Expected '('")
+	if consumeErrLeft != nil {
+		return consumeErrLeft, nil
+	}
+	conditionErr, condition := p.expression()
+	if conditionErr != nil {
+		return conditionErr, nil
+	}
+	consumeErrRight, _ := p.consume(RightBrace, "Expected ')'")
+	if consumeErrRight != nil {
+		return consumeErrRight, nil
+	}
+	err, statement := p.statement()
+	if err != nil {
+		return err, nil
+	}
+	return nil, NewWhileStatement(condition, statement)
+}
+
+func (p *Parser) forStatement() (error, Statement) {
+	consumeErrLeft, _ := p.consume(LeftBrace, "Expected '('")
+	if consumeErrLeft != nil {
+		return consumeErrLeft, nil
+	}
+	if !p.match(Let) {
+		return NewParserError("Let expected"), nil
+	}
+	err, initializer := p.letDeclaration()
+	if err != nil {
+		return err, nil
+	}
+	err, condition := p.expression()
+	if err != nil {
+		return err, nil
+	}
+	consumeErrSemicolon, _ := p.consume(Semicolon, "Expected ';'")
+	if consumeErrSemicolon != nil {
+		return consumeErrSemicolon, nil
+	}
+	err, increment := p.expression()
+	if err != nil {
+		return err, nil
+	}
+	consumeErrRight, _ := p.consume(RightBrace, "Expected ')'")
+	if consumeErrRight != nil {
+		return consumeErrRight, nil
+	}
+	err, body := p.statement()
+	if err != nil {
+		return err, nil
+	}
+	return nil, NewForStatement(condition, initializer, increment, body)
+}
+
 func (p *Parser) statement() (error, Statement) {
+	if p.match(For) {
+		return p.forStatement()
+	}
+	if p.match(While) {
+		return p.whileStatement()
+	}
 	if p.match(If) {
 		return p.ifStatement()
 	}
@@ -373,6 +436,20 @@ func (p *Parser) statement() (error, Statement) {
 	}
 	if p.match(Print) {
 		return p.printStatement()
+	}
+	if p.match(Break) {
+		consumeError, _ := p.consume(Semicolon, "Expect ';' after value")
+		if consumeError != nil {
+			return consumeError, nil
+		}
+		return nil, NewBreakStatement()
+	}
+	if p.match(Continue) {
+		consumeError, _ := p.consume(Semicolon, "Expect ';' after value")
+		if consumeError != nil {
+			return consumeError, nil
+		}
+		return nil, NewContinueStatement()
 	}
 	return p.expressionStatement()
 }

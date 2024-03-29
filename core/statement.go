@@ -69,6 +69,49 @@ func NewIfStatement(condition Expression,
 	}
 }
 
+type WhileStatement struct {
+	condition Expression
+	statement Statement
+}
+
+func NewWhileStatement(condition Expression, statement Statement) WhileStatement {
+	return WhileStatement{
+		condition,
+		statement,
+	}
+}
+
+type ForStatement struct {
+	condition   Expression
+	initializer Expression
+	increment   Expression
+	statement   Statement
+}
+
+func NewForStatement(condition Expression,
+	initializer Expression,
+	increment Expression,
+	statement Statement) ForStatement {
+	return ForStatement{
+		condition,
+		initializer,
+		increment,
+		statement,
+	}
+}
+
+type BreakStatement struct{}
+
+func NewBreakStatement() BreakStatement {
+	return BreakStatement{}
+}
+
+type ContinueStatement struct{}
+
+func NewContinueStatement() ContinueStatement {
+	return ContinueStatement{}
+}
+
 // func StringifyStatement[T Statement | []Statement](value T) string{
 // 	switch option := any(value).(type) {
 // 	case Statement:

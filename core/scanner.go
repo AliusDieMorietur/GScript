@@ -47,38 +47,42 @@ const (
 
 	// Keywords
 
-	Struct = "struct"
-	Else   = "else"
-	True   = "true"
-	False  = "false"
-	Fn     = "fn"
-	For    = "for"
-	If     = "if"
-	Null   = "null"
-	Print  = "print"
-	Return = "return"
-	Super  = "super"
-	This   = "this"
-	Let    = "let"
-	While  = "while"
-	Eof    = "eof"
+	Struct   = "struct"
+	Else     = "else"
+	True     = "true"
+	False    = "false"
+	Fn       = "fn"
+	For      = "for"
+	If       = "if"
+	Null     = "null"
+	Print    = "print"
+	Return   = "return"
+	Super    = "super"
+	This     = "this"
+	Let      = "let"
+	While    = "while"
+	Eof      = "eof"
+	Break    = "break"
+	Continue = "continue"
 )
 
 var keywords = map[string]string{
-	"struct": Struct,
-	"else":   Else,
-	"true":   True,
-	"false":  False,
-	"for":    For,
-	"fn":     Fn,
-	"if":     If,
-	"null":   Null,
-	"print":  Print,
-	"return": Return,
-	"super":  Super,
-	"this":   This,
-	"let":    Let,
-	"while":  While,
+	"struct":   Struct,
+	"else":     Else,
+	"true":     True,
+	"false":    False,
+	"for":      For,
+	"fn":       Fn,
+	"if":       If,
+	"null":     Null,
+	"print":    Print,
+	"return":   Return,
+	"super":    Super,
+	"this":     This,
+	"let":      Let,
+	"while":    While,
+	"break":    Break,
+	"continue": Continue,
 }
 
 type Token struct {
