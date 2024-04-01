@@ -6,9 +6,6 @@ import (
 	u "github.com/core/utils"
 )
 
-const BreakError = "Break outside loop"
-const ContinueError = "Continue outside loop"
-
 func performBinaryNumberOperation(left any, right any, operation func(lhs float64, rhs float64) any) (error, any) {
 	leftErr, lhs := u.AsFloat(left)
 	if leftErr != nil {
@@ -22,13 +19,16 @@ func performBinaryNumberOperation(left any, right any, operation func(lhs float6
 }
 
 type Interpreter struct {
+	globals     *Environment
 	environment *Environment
 }
 
 func NewInterpreter() Interpreter {
 	environment := NewEnvironment(nil)
+	environment.define("clock", Clock{})
 	return Interpreter{
 		environment: &environment,
+		globals:     &environment,
 	}
 }
 
@@ -76,82 +76,105 @@ func (i *Interpreter) executeBlock(statements []Statement, env *Environment) err
 	return nil
 }
 
-func (i *Interpreter) execute(statement Statement) error {
-	switch option := statement.(type) {
-	case BreakStatement:
-		return u.NewError(BreakError)
-	case ContinueStatement:
-		return u.NewError(ContinueError)
-	case BlockStatement:
-		env := NewEnvironment(i.environment)
-		err := i.executeBlock(option.statements, &env)
+func (i Interpreter) executeFor(forStatement ForStatement) error {
+	previous := i.environment
+	env := NewEnvironment(i.environment)
+	i.environment = &env
+	initializerErr := i.execute(forStatement.initializer)
+	if initializerErr != nil {
+		i.environment = previous
+		return initializerErr
+	}
+	conditionErr, condition := i.evaluate(forStatement.condition)
+	if conditionErr != nil {
+		i.environment = previous
+		return conditionErr
+	}
+	next := func() error {
+		conditionErr, _ = i.evaluate(forStatement.increment)
+		if conditionErr != nil {
+			i.environment = previous
+			return conditionErr
+		}
+		conditionErr, condition = i.evaluate(forStatement.condition)
+		if conditionErr != nil {
+			i.environment = previous
+			return conditionErr
+		}
+		return nil
+	}
+	for i.isTruthy(condition) {
+		loopErr := i.execute(forStatement.statement)
+		if loopErr != nil {
+			if _, ok := loopErr.(ContinueError); ok {
+				err := next()
+				if err != nil {
+					return err
+				}
+				continue
+			}
+			if _, ok := loopErr.(BreakError); ok {
+				break
+			}
+			return loopErr
+		}
+		err := next()
 		if err != nil {
+			i.environment = previous
 			return err
 		}
+	}
+	i.environment = previous
+	return nil
+}
+
+func (i Interpreter) executeWhile(whileStatement WhileStatement) error {
+	conditionErr, condition := i.evaluate(whileStatement.condition)
+	if conditionErr != nil {
+		return conditionErr
+	}
+	for i.isTruthy(condition) {
+		loopErr := i.execute(whileStatement.statement)
+		if loopErr != nil {
+			if  _, ok := loopErr.(ContinueError); ok {
+				continue
+			}
+			if  _, ok := loopErr.(BreakError); ok {
+				break
+			}
+			return loopErr
+		}
+		conditionErr, condition = i.evaluate(whileStatement.condition)
+		if conditionErr != nil {
+			return conditionErr
+		}
+	}
+	return nil
+}
+
+func (i *Interpreter) execute(statement Statement) error {
+	switch option := statement.(type) {
+	case FunctionStatement:
+		f := NewGSFunction(option)
+		i.environment.define(option.name.lexeme, f)
 		return nil
+	case ReturnStatement:
+		err, value := i.evaluate(option.value)
+		if (err != nil ) {
+			return err
+		}
+		return NewReturnError(value)
+	case BreakStatement:
+		return NewBreakError()
+	case ContinueStatement:
+		return NewContinueError()
+	case BlockStatement:
+		env := NewEnvironment(i.environment)
+		return i.executeBlock(option.statements, &env)
 	case ForStatement:
-		initializerErr := i.execute(option.initializer)
-		if initializerErr != nil {
-			return initializerErr
-		}
-		conditionErr, condition := i.evaluate(option.condition)
-		if conditionErr != nil {
-			return conditionErr
-		}
-		next := func() error {
-			conditionErr, _ = i.evaluate(option.increment)
-			if conditionErr != nil {
-				return conditionErr
-			}
-			conditionErr, condition = i.evaluate(option.condition)
-			if conditionErr != nil {
-				return conditionErr
-			}
-			return nil
-		}
-		for i.isTruthy(condition) {
-			loopErr := i.execute(option.statement)
-			if loopErr != nil {
-				if loopErr.Error() == ContinueError {
-					err := next()
-					if err != nil {
-						return err
-					}
-					continue
-				}
-				if loopErr.Error() == BreakError {
-					break
-				}
-				return loopErr
-			}
-			err := next()
-			if err != nil {
-				return err
-			}
-		}
-		return nil
+		return i.executeFor(option)
 	case WhileStatement:
-		conditionErr, condition := i.evaluate(option.condition)
-		if conditionErr != nil {
-			return conditionErr
-		}
-		for i.isTruthy(condition) {
-			loopErr := i.execute(option.statement)
-			if loopErr != nil {
-				if loopErr.Error() == ContinueError {
-					continue
-				}
-				if loopErr.Error() == BreakError {
-					break
-				}
-				return loopErr
-			}
-			conditionErr, condition = i.evaluate(option.condition)
-			if conditionErr != nil {
-				return conditionErr
-			}
-		}
-		return nil
+		return i.executeWhile(option)
 	case IfElseStatement:
 		err, result := i.evaluate(option.condition)
 		if err != nil {
@@ -183,12 +206,18 @@ func (i *Interpreter) execute(statement Statement) error {
 			value = result
 		}
 		i.environment.define(option.name.lexeme, value)
+		return nil
 	case PrintStatement:
 		err, value := i.evaluate(option.expression)
 		if err != nil {
 			return err
 		}
+		if callee, ok := value.(Callable); ok {
+			fmt.Println(callee.toString())
+			return nil
+		}
 		fmt.Println(value)
+		return nil
 	case ExpressionStatement:
 		err, _ := i.evaluate(option.expression)
 		if err != nil {
@@ -200,6 +229,28 @@ func (i *Interpreter) execute(statement Statement) error {
 
 func (i Interpreter) evaluate(expression Expression) (error, any) {
 	switch option := expression.(type) {
+	case Call:
+		err, callee := i.evaluate(option.callee)
+		if err != nil {
+			return err, nil
+		}
+		arguments := []any{}
+		for _, argument := range option.arguments {
+			err, expression := i.evaluate(argument)
+			if err != nil {
+				return err, nil
+			}
+			arguments = append(arguments, expression)
+		}
+		if fn, ok := callee.(Callable); ok {
+			argumentsQuantity := len(arguments)
+			arity := fn.arity()
+			if argumentsQuantity != arity {
+				return u.NewError("Expected %v arguments but got %v", arity, argumentsQuantity), nil
+			}
+			return fn.call(&i, arguments)
+		}
+		return u.NewError("Can only call functions"), nil
 	case Logical:
 		err, left := i.evaluate(option.left)
 		if err != nil {

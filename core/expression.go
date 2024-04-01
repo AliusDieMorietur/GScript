@@ -99,6 +99,28 @@ func NewLogical(left Expression, operator Token, right Expression) Logical {
 	}
 }
 
+type Call struct {
+	callee    Expression
+	paren     Token
+	arguments []Expression
+}
+
+func NewCall(callee Expression, paren Token, arguments []Expression) Call {
+	return Call{
+		callee,
+		paren,
+		arguments,
+	}
+}
+
+
+
+type Callable interface {
+	arity() int
+	call(i *Interpreter, arguments []any) (error, any)
+	toString() string
+}
+
 func findToken(token Token, expression Expression) bool {
 	switch option := expression.(type) {
 	case Assignment:

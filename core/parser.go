@@ -7,29 +7,29 @@
 // comparison → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 // term → factor ( ( "-" | "+" ) factor )* ;
 // factor → unary ( ( "/" | "*" ) unary )* ;
-// unary → ( "!" | "-" ) unary | primary ;
+// unary → ( "!" | "-" ) unary | call ;
+// call → primary ( "(" arguments? ")" )* ;
+// arguments → expression ( "," expression )* ;
 // primary → NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" | IDENTIFIER  ;
 
 // program → declaration* EOF ;
-// declaration → letDecl | statement ;
-// statement → exprStmt | forStmt | ifStmt | printStmt | whileStmt | block ;
+// declaration → fnDecl | letDecl | statement ;
+// statement → exprStmt | forStmt | ifStmt | printStmt | returnStmt | whileStmt | block ;
 // forStmt → "for" "(" ( letDecl | exprStmt | ";" ) expression? ";" expression? ")" statement ;
 // whileStmt → "while" "(" expression ")" statement ;
 // block → "{" declaration* "}"
 // ifStmt → "if" "(" expression ")" ( "else" "if" "(" expression ")" )* statement ( "else" statement )? ;
 // exprStmt → expression ";" ;
 // printStmt → "print" expression ";" ;
+// returnStmt → "return" expression? ";" ;
 // letDecl → "let" IDENTIFIER ( "=" expression )? ";" ;
+// fnDecl → "fn" function ;
+// function → IDENTIFIER "(" parameters? ")" block ;
+// parameters → IDENTIFIER ( "," IDENTIFIER )* ;
 
 package main
 
-import (
-	u "github.com/core/utils"
-)
-
-func NewParserError(message string) error {
-	return u.NewError("SyntaxError: %s", message)
-}
+const MAX_FN_ARGUMENTS_COUNT = 255
 
 type Parser struct {
 	tokens  []Token
@@ -186,7 +186,7 @@ func (p *Parser) factor() (error, Expression) {
 }
 
 func (p *Parser) unary() (error, Expression) {
-	for p.match(Minus, Plus) {
+	if p.match(Minus, Plus) {
 		operator := p.previous()
 		err, right := p.unary()
 		if err != nil {
@@ -194,11 +194,54 @@ func (p *Parser) unary() (error, Expression) {
 		}
 		return nil, NewUnary(operator, right)
 	}
-	err, primary := p.primary()
+	err, call := p.call()
 	if err != nil {
 		return err, nil
 	}
-	return nil, primary
+	return nil, call
+}
+
+func (p *Parser) finishCall(callee Expression) (error, Expression) {
+	arguments := []Expression{}
+	if !p.check(RightBrace) {
+		for {
+			if len(arguments) >= MAX_FN_ARGUMENTS_COUNT {
+				return NewParserError("Can't have more than %v arguments", MAX_FN_ARGUMENTS_COUNT), nil
+			}
+			err, expression := p.expression()
+			if err != nil {
+				return err, nil
+			}
+			arguments = append(arguments, expression)
+			if !p.match(Comma) {
+				break
+			}
+		}
+	}
+	err, paren := p.consume(RightBrace, "Expect ')' after arguments.")
+	if err != nil {
+		return err, nil
+	}
+	return nil, NewCall(callee, paren, arguments)
+}
+
+func (p *Parser) call() (error, Expression) {
+	err, expression := p.primary()
+	if err != nil {
+		return err, nil
+	}
+	for {
+		if p.match(LeftBrace) {
+			err, call := p.finishCall(expression)
+			if err != nil {
+				return err, nil
+			}
+			expression = call
+		} else {
+			break
+		}
+	}
+	return nil, expression
 }
 
 func (p *Parser) primary() (error, Expression) {
@@ -323,14 +366,14 @@ func (p *Parser) printStatement() (error, Statement) {
 
 func (p *Parser) block() (error, []Statement) {
 	statements := []Statement{}
-	for !p.check(RightCurlyBrace) && !p.isAtEnd() {
+	for !p.check(RightCurlyBracket) && !p.isAtEnd() {
 		err, statement := p.declaration()
 		if err != nil {
 			return err, statements
 		}
 		statements = append(statements, statement)
 	}
-	p.consume(RightCurlyBrace, "Expect '}' after block")
+	p.consume(RightCurlyBracket, "Expect '}' after block")
 	return nil, statements
 }
 
@@ -417,6 +460,22 @@ func (p *Parser) forStatement() (error, Statement) {
 	return nil, NewForStatement(condition, initializer, increment, body)
 }
 
+func (p *Parser) returnStatement() (error, Statement) {
+	var value Expression; 
+	if !p.check(Semicolon) {
+		err, expression :=  p.expression();
+		if (err != nil) {
+			return err, nil
+		}
+		value = expression
+	}
+	consumeError, _ := p.consume(Semicolon, "Expect ';' after value")
+	if consumeError != nil {
+		return consumeError, nil
+	}
+	return nil, NewReturnStatement(value)
+}
+
 func (p *Parser) statement() (error, Statement) {
 	if p.match(For) {
 		return p.forStatement()
@@ -436,6 +495,9 @@ func (p *Parser) statement() (error, Statement) {
 	}
 	if p.match(Print) {
 		return p.printStatement()
+	}
+	if (p.match(Return)) {
+		return p.returnStatement();
 	}
 	if p.match(Break) {
 		consumeError, _ := p.consume(Semicolon, "Expect ';' after value")
@@ -474,18 +536,55 @@ func (p *Parser) letDeclaration() (error, Statement) {
 	return nil, NewLetStatement(name, initializer)
 }
 
+func (p *Parser) function() (error, Statement) {
+	identifierErr, name := p.consume(Identifier, "Function name expected")
+	if identifierErr != nil {
+		return identifierErr, nil
+	}
+	leftBraceErr, _ := p.consume(LeftBrace, "Expected '('")
+	if leftBraceErr != nil {
+		return leftBraceErr, nil
+	}
+	parameters := []Token{}
+	if !p.check(RightBrace) {
+		for {
+			if len(parameters) > MAX_FN_ARGUMENTS_COUNT {
+				return NewParserError("Can't have more than %v parameters", MAX_FN_ARGUMENTS_COUNT), nil
+			}
+			consumeErr, identifier := p.consume(Identifier, "Expected parameter name")
+			if consumeErr != nil {
+				return consumeErr, nil
+			}
+			parameters = append(parameters, identifier)
+			if !p.match(Comma) {
+				break
+			}
+		}
+	}
+	rightBraceErr, _ := p.consume(RightBrace, "Expected ')' after parameters")
+	if rightBraceErr != nil {
+		return rightBraceErr, nil
+	}
+	leftCurlyBracketErr, _ := p.consume(LeftCurlyBracket, "Expected '{' before body function")
+	if leftCurlyBracketErr != nil {
+		return leftCurlyBracketErr, nil
+	}
+	err, body := p.block()
+	if err != nil {
+		return err, nil
+	}
+	return nil, NewFunctionStatement(name, parameters, body)
+}
+
 func (p *Parser) declaration() (error, Statement) {
 	if p.match(Let) {
-		err, declaration := p.letDeclaration()
-		if err != nil {
-			// p.synchronize()
-			return err, nil
-		}
-		return nil, declaration
+		return p.letDeclaration()
+	}
+	if p.match(Fn) {
+		return p.function()
 	}
 	err, statement := p.statement()
 	if err != nil {
-		// p.synchronize()
 		return err, nil
 	}
 	return nil, statement

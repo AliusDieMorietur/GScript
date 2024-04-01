@@ -11,3 +11,5 @@ for (let a = 10; a != 0; a = a - 1) {
   }
   print a;
 }
+
+print a;

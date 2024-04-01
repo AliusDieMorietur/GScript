@@ -12,21 +12,21 @@ import (
 
 const (
 	// Single-character tokens
-	LeftBracket      = "leftBracket"
-	RightBracket     = "rightBracket"
-	LeftBrace        = "leftBrace"
-	RightBrace       = "rightBrace"
-	LeftCurlyBracket = "leftCurlyBracket"
-	RightCurlyBrace  = "rightCurlyBrace"
-	Comma            = "comma"
-	Dot              = "dot"
-	Minus            = "minus"
-	Plus             = "plus"
-	Semicolon        = "semicolon"
-	Slash            = "slash"
-	Star             = "star"
-	Colon            = "colon"
-	Question         = "question"
+	LeftBracket       = "leftBracket"
+	RightBracket      = "rightBracket"
+	LeftBrace         = "leftBrace"
+	RightBrace        = "rightBrace"
+	LeftCurlyBracket  = "leftCurlyBracket"
+	RightCurlyBracket = "rightCurlyBrace"
+	Comma             = "comma"
+	Dot               = "dot"
+	Minus             = "minus"
+	Plus              = "plus"
+	Semicolon         = "semicolon"
+	Slash             = "slash"
+	Star              = "star"
+	Colon             = "colon"
+	Question          = "question"
 
 	// One or two character tokens
 	Bang         = "bang"
@@ -257,7 +257,7 @@ func (s *Scanner) scanToken() error {
 	case '{':
 		s.addToken(LeftCurlyBracket, "")
 	case '}':
-		s.addToken(RightCurlyBrace, "")
+		s.addToken(RightCurlyBracket, "")
 	case '[':
 		s.addToken(LeftBracket, "")
 	case ']':

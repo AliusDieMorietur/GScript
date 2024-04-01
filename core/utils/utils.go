@@ -6,6 +6,7 @@ import (
 	"strconv"
 )
 
+
 func ReturnFirstError(values ...any) error {
 	for _, value := range values {
 		if err, ok := value.(error); ok {
