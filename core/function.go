@@ -4,11 +4,13 @@ import "fmt"
 
 type GSFunction struct {
 	declaration FunctionStatement
+	closure *Environment
 }
 
-func NewGSFunction(declaration FunctionStatement) GSFunction {
+func NewGSFunction(declaration FunctionStatement, closure *Environment) GSFunction {
 	return GSFunction{
 		declaration, 
+		closure,
 	}
 }
 
@@ -21,7 +23,7 @@ func (f GSFunction) toString() string {
 }
 
 func (f GSFunction) call(i *Interpreter, arguments []any) (error, any) {
-	environment := NewEnvironment(i.globals)
+	environment := NewEnvironment(f.closure)
 	for i := 0; i < len(f.declaration.parameters); i++ {
 		environment.define(f.declaration.parameters[i].lexeme, arguments[i])
 	}

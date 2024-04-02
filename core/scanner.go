@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -241,14 +240,13 @@ func (s *Scanner) scanToken() error {
 		if s.match('&') {
 			s.addToken(And, "")
 		} else {
-			return errors.New("Unterminted &")
+			return u.NewError("Unterminted &")
 		}
 	case '|':
 		if s.match('|') {
 			s.addToken(Or, "")
 		} else {
-			return errors.New("Unterminted |")
-
+			return u.NewError("Unterminted |")
 		}
 	case '(':
 		s.addToken(LeftBrace, "")

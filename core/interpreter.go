@@ -155,7 +155,7 @@ func (i Interpreter) executeWhile(whileStatement WhileStatement) error {
 func (i *Interpreter) execute(statement Statement) error {
 	switch option := statement.(type) {
 	case FunctionStatement:
-		f := NewGSFunction(option)
+		f := NewGSFunction(option, i.environment)
 		i.environment.define(option.name.lexeme, f)
 		return nil
 	case ReturnStatement:
