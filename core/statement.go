@@ -112,22 +112,8 @@ func NewContinueStatement() ContinueStatement {
 	return ContinueStatement{}
 }
 
-type FunctionStatement struct {
-	name       Token
-	parameters []Token
-	body       []Statement
-}
-
-func NewFunctionStatement(name Token, parameters []Token, body []Statement) FunctionStatement {
-	return FunctionStatement{
-		name,
-		parameters,
-		body,
-	}
-}
-
 type ReturnStatement struct {
-	value    Expression
+	value Expression
 }
 
 func NewReturnStatement(value Expression) ReturnStatement {

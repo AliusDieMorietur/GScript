@@ -3,13 +3,13 @@ package main
 import "fmt"
 
 type GSFunction struct {
-	declaration FunctionStatement
-	closure *Environment
+	declaration Function
+	closure     *Environment
 }
 
-func NewGSFunction(declaration FunctionStatement, closure *Environment) GSFunction {
+func NewGSFunction(declaration Function, closure *Environment) GSFunction {
 	return GSFunction{
-		declaration, 
+		declaration,
 		closure,
 	}
 }

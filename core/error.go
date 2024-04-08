@@ -42,7 +42,7 @@ func NewContinueError() ContinueError {
 
 type ReturnError struct {
 	message string
-	value any
+	value   any
 }
 
 func NewReturnError(value any) ReturnError {
@@ -56,6 +56,3 @@ func NewReturnError(value any) ReturnError {
 func (r ReturnError) Error() string {
 	return r.message
 }
-
-
-

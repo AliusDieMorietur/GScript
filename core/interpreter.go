@@ -136,10 +136,10 @@ func (i Interpreter) executeWhile(whileStatement WhileStatement) error {
 	for i.isTruthy(condition) {
 		loopErr := i.execute(whileStatement.statement)
 		if loopErr != nil {
-			if  _, ok := loopErr.(ContinueError); ok {
+			if _, ok := loopErr.(ContinueError); ok {
 				continue
 			}
-			if  _, ok := loopErr.(BreakError); ok {
+			if _, ok := loopErr.(BreakError); ok {
 				break
 			}
 			return loopErr
@@ -154,13 +154,9 @@ func (i Interpreter) executeWhile(whileStatement WhileStatement) error {
 
 func (i *Interpreter) execute(statement Statement) error {
 	switch option := statement.(type) {
-	case FunctionStatement:
-		f := NewGSFunction(option, i.environment)
-		i.environment.define(option.name.lexeme, f)
-		return nil
 	case ReturnStatement:
 		err, value := i.evaluate(option.value)
-		if (err != nil ) {
+		if err != nil {
 			return err
 		}
 		return NewReturnError(value)
@@ -229,6 +225,12 @@ func (i *Interpreter) execute(statement Statement) error {
 
 func (i Interpreter) evaluate(expression Expression) (error, any) {
 	switch option := expression.(type) {
+	case Function:
+		f := NewGSFunction(option, i.environment)
+		if option.name.lexeme != AnonymusFunction {
+			i.environment.define(option.name.lexeme, f)
+		}
+		return nil, f
 	case Call:
 		err, callee := i.evaluate(option.callee)
 		if err != nil {

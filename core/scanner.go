@@ -63,6 +63,9 @@ const (
 	Eof      = "eof"
 	Break    = "break"
 	Continue = "continue"
+
+	// Special
+	AnonymusFunction = "AnonymusFunction"
 )
 
 var keywords = map[string]string{

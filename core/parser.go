@@ -1,5 +1,5 @@
 // expression → assignment ;
-// assignment → IDENTIFIER "=" assignment | ternary ;
+// assignment → IDENTIFIER "=" assignment |  ternary ;
 // ternary → logicOr ( ? ternary : ternary ) ;
 // logicOr → logicAnd ( || logicAnd )*;
 // logicAnd → equality ( && equality  )*;
@@ -7,7 +7,9 @@
 // comparison → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 // term → factor ( ( "-" | "+" ) factor )* ;
 // factor → unary ( ( "/" | "*" ) unary )* ;
-// unary → ( "!" | "-" ) unary | call ;
+// unary → ( "!" | "-" ) unary | function ;
+// function → "fn" IDENTIFIER ? "(" parameters? ")" block ;
+// parameters → IDENTIFIER ( "," IDENTIFIER )* ;
 // call → primary ( "(" arguments? ")" )* ;
 // arguments → expression ( "," expression )* ;
 // primary → NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" | IDENTIFIER  ;
@@ -32,12 +34,14 @@ package main
 const MAX_FN_ARGUMENTS_COUNT = 255
 
 type Parser struct {
-	tokens  []Token
-	current int
+	tokens       []Token
+	current      int
+	currentBlock int
+	blockName    int
 }
 
 func NewParser(tokens []Token) Parser {
-	return Parser{tokens, 0}
+	return Parser{tokens, 0, 0, 0}
 }
 
 func (p *Parser) expression() (error, Expression) {
@@ -194,7 +198,7 @@ func (p *Parser) unary() (error, Expression) {
 		}
 		return nil, NewUnary(operator, right)
 	}
-	err, call := p.call()
+	err, call := p.function()
 	if err != nil {
 		return err, nil
 	}
@@ -345,9 +349,11 @@ func (p *Parser) expressionStatement() (error, Statement) {
 	if expressionError != nil {
 		return expressionError, nil
 	}
-	consumeError, _ := p.consume(Semicolon, "Expect ';' after value")
-	if consumeError != nil {
-		return consumeError, nil
+	if _, ok := expression.(Function); !ok {
+		consumeError, _ := p.consume(Semicolon, "Expect ';' after value")
+		if consumeError != nil {
+			return consumeError, nil
+		}
 	}
 	return nil, NewExpressionStatement(expression)
 }
@@ -461,15 +467,15 @@ func (p *Parser) forStatement() (error, Statement) {
 }
 
 func (p *Parser) returnStatement() (error, Statement) {
-	var value Expression; 
+	var value Expression
 	if !p.check(Semicolon) {
-		err, expression :=  p.expression();
-		if (err != nil) {
+		err, expression := p.expression()
+		if err != nil {
 			return err, nil
 		}
 		value = expression
 	}
-	consumeError, _ := p.consume(Semicolon, "Expect ';' after value")
+	consumeError, _ := p.consume(Semicolon, "Expected ';' after value")
 	if consumeError != nil {
 		return consumeError, nil
 	}
@@ -496,18 +502,18 @@ func (p *Parser) statement() (error, Statement) {
 	if p.match(Print) {
 		return p.printStatement()
 	}
-	if (p.match(Return)) {
-		return p.returnStatement();
+	if p.match(Return) {
+		return p.returnStatement()
 	}
 	if p.match(Break) {
-		consumeError, _ := p.consume(Semicolon, "Expect ';' after value")
+		consumeError, _ := p.consume(Semicolon, "Expected ';' after value")
 		if consumeError != nil {
 			return consumeError, nil
 		}
 		return nil, NewBreakStatement()
 	}
 	if p.match(Continue) {
-		consumeError, _ := p.consume(Semicolon, "Expect ';' after value")
+		consumeError, _ := p.consume(Semicolon, "Expected ';' after value")
 		if consumeError != nil {
 			return consumeError, nil
 		}
@@ -529,17 +535,24 @@ func (p *Parser) letDeclaration() (error, Statement) {
 		}
 		initializer = expression
 	}
-	err, _ := p.consume(Semicolon, "Expect ';' after variable declaration.")
+	err, _ := p.consume(Semicolon, "Expected ';' after variable declaration.")
 	if err != nil {
 		return err, nil
 	}
 	return nil, NewLetStatement(name, initializer)
 }
 
-func (p *Parser) function() (error, Statement) {
-	identifierErr, name := p.consume(Identifier, "Function name expected")
-	if identifierErr != nil {
-		return identifierErr, nil
+func (p *Parser) function() (error, Expression) {
+	if !p.match(Fn) {
+		return p.call()
+	}
+	name := NewToken(AnonymusFunction, AnonymusFunction, "", 0)
+	if p.check(Identifier) {
+		identifierErr, token := p.consume(Identifier, "Function name expected")
+		if identifierErr != nil {
+			return identifierErr, nil
+		}
+		name = token
 	}
 	leftBraceErr, _ := p.consume(LeftBrace, "Expected '('")
 	if leftBraceErr != nil {
@@ -573,15 +586,12 @@ func (p *Parser) function() (error, Statement) {
 	if err != nil {
 		return err, nil
 	}
-	return nil, NewFunctionStatement(name, parameters, body)
+	return nil, NewFunction(name, parameters, body)
 }
 
 func (p *Parser) declaration() (error, Statement) {
 	if p.match(Let) {
 		return p.letDeclaration()
-	}
-	if p.match(Fn) {
-		return p.function()
 	}
 	err, statement := p.statement()
 	if err != nil {

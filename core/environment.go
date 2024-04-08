@@ -19,7 +19,6 @@ func NewEnvironment(enclosing *Environment) Environment {
 
 func (e *Environment) define(name string, value any) {
 	e.values[name] = value
-	// fmt.Println("e.values", e.values);
 }
 
 func (e *Environment) assign(name string, value any) error {

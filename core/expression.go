@@ -113,7 +113,19 @@ func NewCall(callee Expression, paren Token, arguments []Expression) Call {
 	}
 }
 
+type Function struct {
+	name       Token
+	parameters []Token
+	body       []Statement
+}
 
+func NewFunction(name Token, parameters []Token, body []Statement) Function {
+	return Function{
+		name,
+		parameters,
+		body,
+	}
+}
 
 type Callable interface {
 	arity() int
