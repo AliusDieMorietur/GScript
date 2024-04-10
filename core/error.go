@@ -8,6 +8,10 @@ func NewParserError(message string, args ...any) error {
 	return u.NewError("Syntax error: "+message, args...)
 }
 
+func NewResolveError(message string, args ...any) error {
+	return u.NewError("Resolve error: "+message, args...)
+}
+
 func NewRuntimeError(format string, args ...any) error {
 	return u.NewError("Runtime error: "+format, args...)
 }

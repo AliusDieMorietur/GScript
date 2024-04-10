@@ -34,13 +34,13 @@ package main
 const MAX_FN_ARGUMENTS_COUNT = 255
 
 type Parser struct {
-	tokens       []Token
+	tokens       []*Token
 	current      int
 	currentBlock int
 	blockName    int
 }
 
-func NewParser(tokens []Token) Parser {
+func NewParser(tokens []*Token) Parser {
 	return Parser{tokens, 0, 0, 0}
 }
 
@@ -59,9 +59,8 @@ func (p *Parser) assignment() (error, Expression) {
 			return err, expression
 		}
 
-		if variable, ok := expression.(Variable); ok {
-			name := variable.name
-			return nil, NewAssignment(name, value)
+		if variable, ok := (expression).(Variable); ok {
+			return nil, (NewAssignment(variable.name, value))
 		}
 
 		return NewParserError("Invalid assignment target"), nil
@@ -84,9 +83,9 @@ func (p *Parser) ternary() (error, Expression) {
 			if err != nil {
 				return err, nil
 			}
-			return nil, NewTernary(left, middle, right)
+			return nil, (NewTernary(left, middle, right))
 		} else {
-			return nil, NewParserError("Expected ':'")
+			return NewParserError("Expected ':'"), nil
 		}
 	}
 	return nil, left
@@ -103,7 +102,7 @@ func (p *Parser) or() (error, Expression) {
 		if err != nil {
 			return err, nil
 		}
-		expression = NewLogical(expression, operator, right)
+		expression = (NewLogical(expression, operator, right))
 	}
 	return nil, expression
 }
@@ -119,14 +118,13 @@ func (p *Parser) and() (error, Expression) {
 		if err != nil {
 			return err, nil
 		}
-		expression = NewLogical(expression, operator, right)
+		expression = (NewLogical(expression, operator, right))
 	}
 	return nil, expression
 }
 
 func (p *Parser) equality() (error, Expression) {
 	err, expression := p.comparison()
-
 	if err != nil {
 		return err, nil
 	}
@@ -136,7 +134,7 @@ func (p *Parser) equality() (error, Expression) {
 		if err != nil {
 			return err, nil
 		}
-		expression = NewBinary(expression, operator, right)
+		expression = (NewBinary(expression, operator, right))
 	}
 	return nil, expression
 }
@@ -152,7 +150,7 @@ func (p *Parser) comparison() (error, Expression) {
 		if err != nil {
 			return err, nil
 		}
-		expression = NewBinary(expression, operator, right)
+		expression = (NewBinary(expression, operator, right))
 	}
 	return nil, expression
 }
@@ -168,7 +166,7 @@ func (p *Parser) term() (error, Expression) {
 		if err != nil {
 			return err, nil
 		}
-		expression = NewBinary(expression, operator, right)
+		expression = (NewBinary(expression, operator, right))
 	}
 	return nil, expression
 }
@@ -184,7 +182,7 @@ func (p *Parser) factor() (error, Expression) {
 		if err != nil {
 			return err, nil
 		}
-		expression = NewBinary(expression, operator, right)
+		expression = (NewBinary(expression, operator, right))
 	}
 	return nil, expression
 }
@@ -196,7 +194,7 @@ func (p *Parser) unary() (error, Expression) {
 		if err != nil {
 			return err, nil
 		}
-		return nil, NewUnary(operator, right)
+		return nil, (NewUnary(operator, right))
 	}
 	err, call := p.function()
 	if err != nil {
@@ -226,7 +224,7 @@ func (p *Parser) finishCall(callee Expression) (error, Expression) {
 	if err != nil {
 		return err, nil
 	}
-	return nil, NewCall(callee, paren, arguments)
+	return nil, (NewCall(callee, paren, arguments))
 }
 
 func (p *Parser) call() (error, Expression) {
@@ -250,19 +248,19 @@ func (p *Parser) call() (error, Expression) {
 
 func (p *Parser) primary() (error, Expression) {
 	if p.match(False) {
-		return nil, NewLiteral(false)
+		return nil, (NewLiteral(false))
 	}
 	if p.match(True) {
-		return nil, NewLiteral(true)
+		return nil, (NewLiteral(true))
 	}
 	if p.match(Null) {
-		return nil, NewLiteral(nil)
+		return nil, (NewLiteral(nil))
 	}
 	if p.match(Number, String) {
-		return nil, NewLiteral(p.previous().literal)
+		return nil, (NewLiteral(p.previous().literal))
 	}
 	if p.match(Identifier) {
-		return nil, NewVariable(p.previous())
+		return nil, (NewVariable(p.previous()))
 	}
 	if p.match(LeftBrace) {
 		expressionError, expression := p.expression()
@@ -273,12 +271,12 @@ func (p *Parser) primary() (error, Expression) {
 		if consumeError != nil {
 			return consumeError, nil
 		}
-		return nil, NewGrouping(expression)
+		return nil, (NewGrouping(expression))
 	}
 	return NewParserError("Unpredictable expression"), nil
 }
 
-func (p *Parser) consume(tokenType string, message string) (error, Token) {
+func (p *Parser) consume(tokenType string, message string) (error, *Token) {
 	if p.check(tokenType) {
 		return nil, p.advance()
 	}
@@ -303,7 +301,7 @@ func (p *Parser) check(tokenType string) bool {
 	return p.peek().tokenType == tokenType
 }
 
-func (p *Parser) advance() Token {
+func (p *Parser) advance() *Token {
 	if !p.isAtEnd() {
 		p.current++
 	}
@@ -314,11 +312,11 @@ func (p Parser) isAtEnd() bool {
 	return p.peek().tokenType == Eof
 }
 
-func (p Parser) peek() Token {
+func (p Parser) peek() *Token {
 	return p.tokens[p.current]
 }
 
-func (p Parser) previous() Token {
+func (p Parser) previous() *Token {
 	return p.tokens[p.current-1]
 }
 
@@ -349,13 +347,13 @@ func (p *Parser) expressionStatement() (error, Statement) {
 	if expressionError != nil {
 		return expressionError, nil
 	}
-	if _, ok := expression.(Function); !ok {
-		consumeError, _ := p.consume(Semicolon, "Expect ';' after value")
+	if _, ok := (expression).(*Function); !ok {
+		consumeError, _ := p.consume(Semicolon, "Expected ';' after value")
 		if consumeError != nil {
 			return consumeError, nil
 		}
 	}
-	return nil, NewExpressionStatement(expression)
+	return nil, (NewExpressionStatement(expression))
 }
 
 func (p *Parser) printStatement() (error, Statement) {
@@ -363,11 +361,11 @@ func (p *Parser) printStatement() (error, Statement) {
 	if expressionError != nil {
 		return expressionError, nil
 	}
-	consumeError, _ := p.consume(Semicolon, "Expect ';' after value")
+	consumeError, _ := p.consume(Semicolon, "Expected ';' after value")
 	if consumeError != nil {
 		return consumeError, nil
 	}
-	return nil, NewPrintStatement(expression)
+	return nil, (NewPrintStatement(expression))
 }
 
 func (p *Parser) block() (error, []Statement) {
@@ -408,7 +406,7 @@ func (p *Parser) ifStatement() (error, Statement) {
 		}
 		elseBranch = statement
 	}
-	return nil, NewIfStatement(condition, thenBranch, elseBranch)
+	return nil, (NewIfStatement(condition, thenBranch, elseBranch))
 }
 
 func (p *Parser) whileStatement() (error, Statement) {
@@ -428,7 +426,7 @@ func (p *Parser) whileStatement() (error, Statement) {
 	if err != nil {
 		return err, nil
 	}
-	return nil, NewWhileStatement(condition, statement)
+	return nil, (NewWhileStatement(condition, statement))
 }
 
 func (p *Parser) forStatement() (error, Statement) {
@@ -463,7 +461,7 @@ func (p *Parser) forStatement() (error, Statement) {
 	if err != nil {
 		return err, nil
 	}
-	return nil, NewForStatement(condition, initializer, increment, body)
+	return nil, (NewForStatement(condition, initializer, increment, body))
 }
 
 func (p *Parser) returnStatement() (error, Statement) {
@@ -479,7 +477,7 @@ func (p *Parser) returnStatement() (error, Statement) {
 	if consumeError != nil {
 		return consumeError, nil
 	}
-	return nil, NewReturnStatement(value)
+	return nil, (NewReturnStatement(value))
 }
 
 func (p *Parser) statement() (error, Statement) {
@@ -497,7 +495,7 @@ func (p *Parser) statement() (error, Statement) {
 		if err != nil {
 			return err, nil
 		}
-		return nil, NewBlockStatement(statements)
+		return nil, (NewBlockStatement(statements))
 	}
 	if p.match(Print) {
 		return p.printStatement()
@@ -510,14 +508,14 @@ func (p *Parser) statement() (error, Statement) {
 		if consumeError != nil {
 			return consumeError, nil
 		}
-		return nil, NewBreakStatement()
+		return nil, (NewBreakStatement())
 	}
 	if p.match(Continue) {
 		consumeError, _ := p.consume(Semicolon, "Expected ';' after value")
 		if consumeError != nil {
 			return consumeError, nil
 		}
-		return nil, NewContinueStatement()
+		return nil, (NewContinueStatement())
 	}
 	return p.expressionStatement()
 }
@@ -539,7 +537,7 @@ func (p *Parser) letDeclaration() (error, Statement) {
 	if err != nil {
 		return err, nil
 	}
-	return nil, NewLetStatement(name, initializer)
+	return nil, (NewLetStatement(name, initializer))
 }
 
 func (p *Parser) function() (error, Expression) {
@@ -558,7 +556,7 @@ func (p *Parser) function() (error, Expression) {
 	if leftBraceErr != nil {
 		return leftBraceErr, nil
 	}
-	parameters := []Token{}
+	parameters := []*Token{}
 	if !p.check(RightBrace) {
 		for {
 			if len(parameters) > MAX_FN_ARGUMENTS_COUNT {
@@ -586,7 +584,7 @@ func (p *Parser) function() (error, Expression) {
 	if err != nil {
 		return err, nil
 	}
-	return nil, NewFunction(name, parameters, body)
+	return nil, (NewFunction(name, parameters, body))
 }
 
 func (p *Parser) declaration() (error, Statement) {

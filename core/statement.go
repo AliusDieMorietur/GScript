@@ -1,14 +1,13 @@
 package main
 
-type Statement interface {
-}
+type Statement = any
 
 type PrintStatement struct {
 	expression Expression
 }
 
-func NewPrintStatement(expression Expression) PrintStatement {
-	return PrintStatement{
+func NewPrintStatement(expression Expression) *PrintStatement {
+	return &PrintStatement{
 		expression,
 	}
 }
@@ -17,19 +16,19 @@ type ExpressionStatement struct {
 	expression Expression
 }
 
-func NewExpressionStatement(expression Expression) ExpressionStatement {
-	return ExpressionStatement{
+func NewExpressionStatement(expression Expression) *ExpressionStatement {
+	return &ExpressionStatement{
 		expression,
 	}
 }
 
 type LetStatement struct {
-	name        Token
+	name        *Token
 	initializer Expression
 }
 
-func NewLetStatement(name Token, initializer Expression) LetStatement {
-	return LetStatement{
+func NewLetStatement(name *Token, initializer Expression) *LetStatement {
+	return &LetStatement{
 		name,
 		initializer,
 	}
@@ -39,8 +38,8 @@ type BlockStatement struct {
 	statements []Statement
 }
 
-func NewBlockStatement(statements []Statement) BlockStatement {
-	return BlockStatement{
+func NewBlockStatement(statements []Statement) *BlockStatement {
+	return &BlockStatement{
 		statements,
 	}
 }
@@ -60,8 +59,8 @@ type IfElseStatement struct {
 func NewIfStatement(condition Expression,
 	thenBranch Statement,
 	// elseIfs []IfElseBranch,
-	elseBranch Statement) IfElseStatement {
-	return IfElseStatement{
+	elseBranch Statement) *IfElseStatement {
+	return &IfElseStatement{
 		condition,
 		thenBranch,
 		// elseIfs,
@@ -74,8 +73,8 @@ type WhileStatement struct {
 	statement Statement
 }
 
-func NewWhileStatement(condition Expression, statement Statement) WhileStatement {
-	return WhileStatement{
+func NewWhileStatement(condition Expression, statement Statement) *WhileStatement {
+	return &WhileStatement{
 		condition,
 		statement,
 	}
@@ -83,41 +82,41 @@ func NewWhileStatement(condition Expression, statement Statement) WhileStatement
 
 type ForStatement struct {
 	condition   Expression
-	initializer Expression
+	initializer Statement
 	increment   Expression
-	statement   Statement
+	body        Statement
 }
 
 func NewForStatement(condition Expression,
-	initializer Expression,
+	initializer Statement,
 	increment Expression,
-	statement Statement) ForStatement {
-	return ForStatement{
+	body Statement) *ForStatement {
+	return &ForStatement{
 		condition,
 		initializer,
 		increment,
-		statement,
+		body,
 	}
 }
 
 type BreakStatement struct{}
 
-func NewBreakStatement() BreakStatement {
-	return BreakStatement{}
+func NewBreakStatement() *BreakStatement {
+	return &BreakStatement{}
 }
 
 type ContinueStatement struct{}
 
-func NewContinueStatement() ContinueStatement {
-	return ContinueStatement{}
+func NewContinueStatement() *ContinueStatement {
+	return &ContinueStatement{}
 }
 
 type ReturnStatement struct {
 	value Expression
 }
 
-func NewReturnStatement(value Expression) ReturnStatement {
-	return ReturnStatement{
+func NewReturnStatement(value Expression) *ReturnStatement {
+	return &ReturnStatement{
 		value,
 	}
 }

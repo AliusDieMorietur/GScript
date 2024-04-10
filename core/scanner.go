@@ -94,8 +94,8 @@ type Token struct {
 	line      uint
 }
 
-func NewToken(tokenType string, lexeme string, literal any, line uint) Token {
-	return Token{
+func NewToken(tokenType string, lexeme string, literal any, line uint) *Token {
+	return &Token{
 		tokenType,
 		lexeme,
 		literal,
@@ -116,16 +116,16 @@ type Scanner struct {
 	start   uint
 	current uint
 	line    uint
-	tokens  []Token
+	tokens  []*Token
 }
 
-func NewScanner(source string) Scanner {
-	return Scanner{
+func NewScanner(source string) *Scanner {
+	return &Scanner{
 		source,
 		0,
 		0,
 		1,
-		[]Token{},
+		[]*Token{},
 	}
 }
 
@@ -135,7 +135,8 @@ func (s Scanner) isAtEnd() bool {
 
 func (s *Scanner) addToken(tokenType string, literal any) {
 	text := s.source[s.start:s.current]
-	s.tokens = append(s.tokens, NewToken(tokenType, text, literal, s.line))
+	token := NewToken(tokenType, text, literal, s.line)
+	s.tokens = append(s.tokens, token)
 }
 
 func (s *Scanner) advance() byte {
@@ -314,7 +315,7 @@ func (s *Scanner) scanToken() error {
 	return nil
 }
 
-func (s *Scanner) scanTokens() (error, []Token) {
+func (s *Scanner) scanTokens() (error, []*Token) {
 	for !s.isAtEnd() {
 		s.start = s.current
 		err := s.scanToken()
@@ -322,6 +323,7 @@ func (s *Scanner) scanTokens() (error, []Token) {
 			return err, s.tokens
 		}
 	}
-	s.tokens = append(s.tokens, NewToken(Eof, "Eof", "", s.line))
+	token := NewToken(Eof, "Eof", "", s.line)
+	s.tokens = append(s.tokens, token)
 	return nil, s.tokens
 }

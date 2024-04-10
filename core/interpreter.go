@@ -21,14 +21,17 @@ func performBinaryNumberOperation(left any, right any, operation func(lhs float6
 type Interpreter struct {
 	globals     *Environment
 	environment *Environment
+	locals      map[Expression]int
 }
 
-func NewInterpreter() Interpreter {
+func NewInterpreter(locals map[Expression]int) *Interpreter {
 	environment := NewEnvironment(nil)
 	environment.define("clock", Clock{})
-	return Interpreter{
-		environment: &environment,
-		globals:     &environment,
+	globals := environment
+	return &Interpreter{
+		environment,
+		globals,
+		locals,
 	}
 }
 
@@ -76,10 +79,9 @@ func (i *Interpreter) executeBlock(statements []Statement, env *Environment) err
 	return nil
 }
 
-func (i Interpreter) executeFor(forStatement ForStatement) error {
+func (i Interpreter) executeFor(forStatement *ForStatement) error {
 	previous := i.environment
-	env := NewEnvironment(i.environment)
-	i.environment = &env
+	i.environment = NewEnvironment(i.environment)
 	initializerErr := i.execute(forStatement.initializer)
 	if initializerErr != nil {
 		i.environment = previous
@@ -104,7 +106,7 @@ func (i Interpreter) executeFor(forStatement ForStatement) error {
 		return nil
 	}
 	for i.isTruthy(condition) {
-		loopErr := i.execute(forStatement.statement)
+		loopErr := i.execute(forStatement.body)
 		if loopErr != nil {
 			if _, ok := loopErr.(ContinueError); ok {
 				err := next()
@@ -128,7 +130,7 @@ func (i Interpreter) executeFor(forStatement ForStatement) error {
 	return nil
 }
 
-func (i Interpreter) executeWhile(whileStatement WhileStatement) error {
+func (i Interpreter) executeWhile(whileStatement *WhileStatement) error {
 	conditionErr, condition := i.evaluate(whileStatement.condition)
 	if conditionErr != nil {
 		return conditionErr
@@ -153,25 +155,24 @@ func (i Interpreter) executeWhile(whileStatement WhileStatement) error {
 }
 
 func (i *Interpreter) execute(statement Statement) error {
-	switch option := statement.(type) {
-	case ReturnStatement:
+	switch option := (statement).(type) {
+	case *ReturnStatement:
 		err, value := i.evaluate(option.value)
 		if err != nil {
 			return err
 		}
 		return NewReturnError(value)
-	case BreakStatement:
+	case *BreakStatement:
 		return NewBreakError()
-	case ContinueStatement:
+	case *ContinueStatement:
 		return NewContinueError()
-	case BlockStatement:
-		env := NewEnvironment(i.environment)
-		return i.executeBlock(option.statements, &env)
-	case ForStatement:
+	case *BlockStatement:
+		return i.executeBlock(option.statements, NewEnvironment(i.environment))
+	case *ForStatement:
 		return i.executeFor(option)
-	case WhileStatement:
+	case *WhileStatement:
 		return i.executeWhile(option)
-	case IfElseStatement:
+	case *IfElseStatement:
 		err, result := i.evaluate(option.condition)
 		if err != nil {
 			return err
@@ -189,7 +190,7 @@ func (i *Interpreter) execute(statement Statement) error {
 				}
 			}
 		}
-	case LetStatement:
+	case *LetStatement:
 		var value any
 		if option.initializer != nil {
 			// if (findToken(option.name, option.initializer)) {
@@ -203,7 +204,7 @@ func (i *Interpreter) execute(statement Statement) error {
 		}
 		i.environment.define(option.name.lexeme, value)
 		return nil
-	case PrintStatement:
+	case *PrintStatement:
 		err, value := i.evaluate(option.expression)
 		if err != nil {
 			return err
@@ -214,7 +215,7 @@ func (i *Interpreter) execute(statement Statement) error {
 		}
 		fmt.Println(value)
 		return nil
-	case ExpressionStatement:
+	case *ExpressionStatement:
 		err, _ := i.evaluate(option.expression)
 		if err != nil {
 			return err
@@ -223,15 +224,24 @@ func (i *Interpreter) execute(statement Statement) error {
 	return nil
 }
 
+func (i Interpreter) lookUpVariable(name *Token, variable Expression) (error, any) {
+	distance, ok := i.locals[variable]
+	if ok {
+		return i.environment.getAt(distance, name.lexeme)
+	} else {
+		return i.globals.get(name)
+	}
+}
+
 func (i Interpreter) evaluate(expression Expression) (error, any) {
-	switch option := expression.(type) {
-	case Function:
+	switch option := (expression).(type) {
+	case *Function:
 		f := NewGSFunction(option, i.environment)
 		if option.name.lexeme != AnonymusFunction {
 			i.environment.define(option.name.lexeme, f)
 		}
 		return nil, f
-	case Call:
+	case *Call:
 		err, callee := i.evaluate(option.callee)
 		if err != nil {
 			return err, nil
@@ -253,7 +263,7 @@ func (i Interpreter) evaluate(expression Expression) (error, any) {
 			return fn.call(&i, arguments)
 		}
 		return u.NewError("Can only call functions"), nil
-	case Logical:
+	case *Logical:
 		err, left := i.evaluate(option.left)
 		if err != nil {
 			return err, nil
@@ -268,7 +278,7 @@ func (i Interpreter) evaluate(expression Expression) (error, any) {
 			}
 		}
 		return i.evaluate(option.right)
-	case Ternary:
+	case *Ternary:
 		leftErr, left := i.evaluate(option.left)
 		if leftErr != nil {
 			return leftErr, nil
@@ -286,19 +296,24 @@ func (i Interpreter) evaluate(expression Expression) (error, any) {
 			}
 			return nil, right
 		}
-	case Variable:
-		return i.environment.get(option.name)
-	case Assignment:
+	case *Variable:
+		return i.lookUpVariable(option.name, expression)
+	case *Assignment:
 		err, value := i.evaluate(option.value)
 		if err != nil {
 			return err, nil
 		}
-		assignErr := i.environment.assign(option.name.lexeme, value)
-		if assignErr != nil {
-			return assignErr, nil
+		distance, ok := i.locals[expression]
+		if ok {
+			i.environment.assignAt(distance, option.name, value)
+		} else {
+			assignErr := i.globals.assign(option.name.lexeme, value)
+			if assignErr != nil {
+				return assignErr, nil
+			}
 		}
 		return nil, value
-	case Binary:
+	case *Binary:
 		leftErr, left := i.evaluate(option.left)
 		if leftErr != nil {
 			return leftErr, nil
@@ -361,7 +376,7 @@ func (i Interpreter) evaluate(expression Expression) (error, any) {
 		default:
 			return u.NewError("Unexpected binary operator '%v'", operator), nil
 		}
-	case Unary:
+	case *Unary:
 		rightErr, right := i.evaluate(option.right)
 		if rightErr != nil {
 			return rightErr, nil
@@ -378,9 +393,9 @@ func (i Interpreter) evaluate(expression Expression) (error, any) {
 		default:
 			return u.NewError("Unexpected unary operator '%v'", operator), nil
 		}
-	case Grouping:
+	case *Grouping:
 		return i.evaluate(option.expression)
-	case Literal:
+	case *Literal:
 		return nil, option.value
 	default:
 		return u.NewError("Unreachable evaluate"), nil

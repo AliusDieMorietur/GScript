@@ -9,9 +9,9 @@ type Environment struct {
 	enclosing *Environment
 }
 
-func NewEnvironment(enclosing *Environment) Environment {
+func NewEnvironment(enclosing *Environment) *Environment {
 	values := map[string]any{}
-	return Environment{
+	return &Environment{
 		values,
 		enclosing,
 	}
@@ -19,6 +19,28 @@ func NewEnvironment(enclosing *Environment) Environment {
 
 func (e *Environment) define(name string, value any) {
 	e.values[name] = value
+}
+
+func (e *Environment) getAt(distance int, name string) (error, any) {
+	ancestor := e.ancestor(distance)
+	value, ok := ancestor.values[name]
+	if !ok {
+		return u.NewError("Undefined variable '" + name + "'."), nil
+	}
+	return nil, value
+}
+
+func (e *Environment) ancestor(distance int) *Environment {
+	environment := e
+	for i := 0; i < distance; i++ {
+		environment = environment.enclosing
+	}
+	return environment
+}
+
+func (e *Environment) assignAt(distance int, name *Token, value any) {
+	ancestor := e.ancestor(distance)
+	ancestor.values[name.lexeme] = value
 }
 
 func (e *Environment) assign(name string, value any) error {
@@ -33,7 +55,7 @@ func (e *Environment) assign(name string, value any) error {
 	return u.NewError("Undefined variable '" + name + "'.")
 }
 
-func (e Environment) get(name Token) (error, any) {
+func (e Environment) get(name *Token) (error, any) {
 	value, ok := e.values[name.lexeme]
 	if !ok {
 		if e.enclosing != nil {

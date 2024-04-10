@@ -6,4 +6,5 @@ let a = "global";
   showA();
   let a = "block";
   showA();
+  print a;
 }

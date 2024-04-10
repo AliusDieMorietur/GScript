@@ -26,7 +26,12 @@ func (l *Lng) run(source string) error {
 	if parseErr != nil {
 		return parseErr
 	}
-	interperter := NewInterpreter()
+	resolver := NewResolver()
+	resolveErr, locals := resolver.resolve(statements)
+	if resolveErr != nil {
+		return resolveErr
+	}
+	interperter := NewInterpreter(locals)
 	interpretErr := interperter.interpret(statements)
 	if interpretErr != nil {
 		return interpretErr
