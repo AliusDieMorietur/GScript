@@ -231,8 +231,8 @@ func (i *Interpreter) execute(statement Statement) error {
 	return nil
 }
 
-func (i Interpreter) lookUpVariable(name *Token, variable Expression) (error, any) {
-	distance, ok := i.locals[variable]
+func (i Interpreter) lookUpVariable(name *Token, expression Expression) (error, any) {
+	distance, ok := i.locals[expression]
 	if ok {
 		return i.environment.getAt(distance, name.lexeme)
 	} else {
@@ -242,6 +242,8 @@ func (i Interpreter) lookUpVariable(name *Token, variable Expression) (error, an
 
 func (i Interpreter) evaluate(expression Expression) (error, any) {
 	switch option := (expression).(type) {
+	case *ThisExpression:
+		return i.lookUpVariable(option.keyword, expression)
 	case *Get:
 		err, value := i.evaluate(option.object)
 		if err != nil {

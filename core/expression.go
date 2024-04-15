@@ -158,3 +158,13 @@ func NewSet(name *Token, object Expression,
 		value,
 	}
 }
+
+type ThisExpression struct {
+	keyword *Token
+}
+
+func NewThisExpression(keyword *Token) *ThisExpression {
+	return &ThisExpression{
+		keyword,
+	}
+}

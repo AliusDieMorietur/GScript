@@ -13,7 +13,7 @@ func NewGSStruct(name string, methods map[string]*GSFunction) *GSStruct {
 }
 
 func (g GSStruct) String() string {
-	return "[struct: " + g.name + "]" 
+	return "[struct: " + g.name + "]"
 }
 
 func (g GSStruct) arity() int {
@@ -25,7 +25,7 @@ func (g GSStruct) call(i *Interpreter, arguments []any) (error, any) {
 	return nil, instance
 }
 
-func (g GSStruct) findMethod(name string) any {
+func (g GSStruct) findMethod(name string) *GSFunction {
 	method, ok := g.methods[name]
 	if ok {
 		return method
@@ -57,7 +57,7 @@ func (g GSInstance) get(name *Token) (error, any) {
 	}
 	method := g.gsStruct.findMethod(name.lexeme)
 	if method != nil {
-		return nil, method
+		return nil, method.bind(&g)
 	}
 	return NewRuntimeError("Undefined property '" + name.lexeme + "'"), nil
 }

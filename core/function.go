@@ -33,3 +33,9 @@ func (f GSFunction) call(i *Interpreter, arguments []any) (error, any) {
 	}
 	return err, nil
 }
+
+func (f GSFunction) bind(instance *GSInstance) *GSFunction {
+	environment := NewEnvironment(f.closure)
+	environment.define(This, instance)
+	return NewGSFunction(f.declaration, environment)
+}

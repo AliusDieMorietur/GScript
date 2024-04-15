@@ -129,6 +129,9 @@ func (r *Resolver) resolveExpression(expression Expression) error {
 		if err != nil {
 			return err
 		}
+	case *ThisExpression:
+		r.resolveLocal(expression, option.keyword)
+		return nil
 	case *Variable:
 		if !r.isScopesEmpty() {
 			scope := r.scopes[len(r.scopes)-1]
@@ -154,12 +157,18 @@ func (r *Resolver) resolveStatement(statement Statement) error {
 	case *StructStatment:
 		r.declare(option.name)
 		r.define(option.name)
+
+		r.beginScope()
+		scope := r.scopes[len(r.scopes)-1]
+		scope[This] = true
+
 		for _, method := range option.methods {
 			err := r.resolveFunction(method)
 			if err != nil {
 				return err
 			}
 		}
+		r.endScope()
 		return nil
 	case *ReturnStatement:
 		if option.value == nil {

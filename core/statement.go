@@ -132,16 +132,3 @@ func NewStructStatment(name *Token, methods []*Function) *StructStatment {
 		methods,
 	}
 }
-
-// func StringifyStatement[T Statement | []Statement](value T) string{
-// 	switch option := any(value).(type) {
-// 	case Statement:
-// 		 switch
-// 	case []Statement:
-// 		for statement := range option {
-// 			return StringifyStatement(statement)
-// 		}
-// 	}
-
-// 	return ""
-// }

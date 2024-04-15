@@ -59,14 +59,12 @@ func (p *Parser) assignment() (error, Expression) {
 		if err != nil {
 			return err, expression
 		}
-
-		if variable, ok := (expression).(Variable); ok {
+		if variable, ok := (expression).(*Variable); ok {
 			return nil, (NewAssignment(variable.name, value))
 		}
-		if get, ok := (expression).(Get); ok {
+		if get, ok := (expression).(*Get); ok {
 			return nil, (NewSet(get.name, get.object, value))
 		}
-
 		return NewParserError("Invalid assignment target"), nil
 	}
 	return nil, expression
@@ -268,6 +266,9 @@ func (p *Parser) primary() (error, Expression) {
 	}
 	if p.match(Number, String) {
 		return nil, (NewLiteral(p.previous().literal))
+	}
+	if p.match(This) {
+		return nil, (NewThisExpression(p.previous()))
 	}
 	if p.match(Identifier) {
 		return nil, (NewVariable(p.previous()))
