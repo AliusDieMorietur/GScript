@@ -17,6 +17,6 @@ func (c Clock) call(i *Interpreter, arguments []any) (error, any) {
 	return nil, float64(time.Now().UnixMilli())
 }
 
-func (c Clock) toString() string {
+func (c Clock) String() string {
 	return "[fn: clock]"
 }

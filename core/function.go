@@ -18,7 +18,7 @@ func (f GSFunction) arity() int {
 	return len(f.declaration.parameters)
 }
 
-func (f GSFunction) toString() string {
+func (f GSFunction) String() string {
 	return fmt.Sprintf("[fn: %v]", f.declaration.name.lexeme)
 }
 

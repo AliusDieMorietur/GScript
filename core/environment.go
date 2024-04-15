@@ -43,16 +43,16 @@ func (e *Environment) assignAt(distance int, name *Token, value any) {
 	ancestor.values[name.lexeme] = value
 }
 
-func (e *Environment) assign(name string, value any) error {
-	_, ok := e.values[name]
+func (e *Environment) assign(name *Token, value any) error {
+	_, ok := e.values[name.lexeme]
 	if ok {
-		e.values[name] = value
+		e.values[name.lexeme] = value
 		return nil
 	}
 	if e.enclosing != nil {
 		return e.enclosing.assign(name, value)
 	}
-	return u.NewError("Undefined variable '" + name + "'.")
+	return u.NewError("Undefined variable '" + name.lexeme + "'.")
 }
 
 func (e Environment) get(name *Token) (error, any) {

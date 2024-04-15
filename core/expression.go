@@ -129,25 +129,32 @@ func NewFunction(name *Token, parameters []*Token, body []Statement) *Function {
 type Callable interface {
 	arity() int
 	call(i *Interpreter, arguments []any) (error, any)
-	toString() string
+	String() string
 }
 
-func findToken(token *Token, expression Expression) bool {
-	switch option := (expression).(type) {
-	case Assignment:
-		if option.name.lexeme != token.lexeme {
-			return findToken(token, option.value)
-		}
-		return true
-	case Variable:
-		return option.name.lexeme == token.lexeme
-	case Unary:
-		return findToken(token, option.right)
-	case Binary:
-		return findToken(token, option.left) || findToken(token, option.right)
-	case Grouping:
-		return findToken(token, option.expression)
-	default:
-		return false
+type Get struct {
+	name   *Token
+	object any
+}
+
+func NewGet(name *Token, object any) *Get {
+	return &Get{
+		name,
+		object,
+	}
+}
+
+type Set struct {
+	name   *Token
+	object Expression
+	value  Expression
+}
+
+func NewSet(name *Token, object Expression,
+	value Expression) *Set {
+	return &Set{
+		name,
+		object,
+		value,
 	}
 }

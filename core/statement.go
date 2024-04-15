@@ -121,6 +121,18 @@ func NewReturnStatement(value Expression) *ReturnStatement {
 	}
 }
 
+type StructStatment struct {
+	name    *Token
+	methods []*Function
+}
+
+func NewStructStatment(name *Token, methods []*Function) *StructStatment {
+	return &StructStatment{
+		name,
+		methods,
+	}
+}
+
 // func StringifyStatement[T Statement | []Statement](value T) string{
 // 	switch option := any(value).(type) {
 // 	case Statement:

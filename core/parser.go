@@ -1,5 +1,5 @@
 // expression → assignment ;
-// assignment → IDENTIFIER "=" assignment |  ternary ;
+// assignment → ( call "." )? IDENTIFIER "=" assignment | ternary ;
 // ternary → logicOr ( ? ternary : ternary ) ;
 // logicOr → logicAnd ( || logicAnd )*;
 // logicAnd → equality ( && equality  )*;
@@ -10,12 +10,12 @@
 // unary → ( "!" | "-" ) unary | function ;
 // function → "fn" IDENTIFIER ? "(" parameters? ")" block ;
 // parameters → IDENTIFIER ( "," IDENTIFIER )* ;
-// call → primary ( "(" arguments? ")" )* ;
+// call → primary ( "(" arguments? ")" | "." IDENTIFIER )* ;
 // arguments → expression ( "," expression )* ;
 // primary → NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" | IDENTIFIER  ;
 
 // program → declaration* EOF ;
-// declaration → fnDecl | letDecl | statement ;
+// declaration → structDecl | fnDecl | letDecl | statement ;
 // statement → exprStmt | forStmt | ifStmt | printStmt | returnStmt | whileStmt | block ;
 // forStmt → "for" "(" ( letDecl | exprStmt | ";" ) expression? ";" expression? ")" statement ;
 // whileStmt → "while" "(" expression ")" statement ;
@@ -25,6 +25,7 @@
 // printStmt → "print" expression ";" ;
 // returnStmt → "return" expression? ";" ;
 // letDecl → "let" IDENTIFIER ( "=" expression )? ";" ;
+// structDecl → "struct" IDENTIFIER "{" function* "}" ;
 // fnDecl → "fn" function ;
 // function → IDENTIFIER "(" parameters? ")" block ;
 // parameters → IDENTIFIER ( "," IDENTIFIER )* ;
@@ -61,6 +62,9 @@ func (p *Parser) assignment() (error, Expression) {
 
 		if variable, ok := (expression).(Variable); ok {
 			return nil, (NewAssignment(variable.name, value))
+		}
+		if get, ok := (expression).(Get); ok {
+			return nil, (NewSet(get.name, get.object, value))
 		}
 
 		return NewParserError("Invalid assignment target"), nil
@@ -239,6 +243,12 @@ func (p *Parser) call() (error, Expression) {
 				return err, nil
 			}
 			expression = call
+		} else if p.match(Dot) {
+			err, name := p.consume(Identifier, "Exepcted property name after '.'")
+			if err != nil {
+				return err, nil
+			}
+			expression = NewGet(name, expression)
 		} else {
 			break
 		}
@@ -587,7 +597,39 @@ func (p *Parser) function() (error, Expression) {
 	return nil, (NewFunction(name, parameters, body))
 }
 
+func (p *Parser) structDeclaration() (error, Statement) {
+	identifierErr, name := p.consume(Identifier, "Expected struct name")
+	if identifierErr != nil {
+		return identifierErr, nil
+	}
+	leftCurlyBracketErr, _ := p.consume(LeftCurlyBracket, "Expected '{' before class body.")
+	if leftCurlyBracketErr != nil {
+		return leftCurlyBracketErr, nil
+	}
+	methods := []*Function{}
+	for !p.check(RightCurlyBracket) && !p.isAtEnd() {
+		err, fn := p.function()
+		if err != nil {
+			return err, nil
+		}
+		if value, ok := fn.(*Function); ok {
+			methods = append(methods, value)
+		} else {
+			return NewParserError("Unexpected expression returned as function method"), nil
+		}
+	}
+
+	rightCurlyBracketErr, _ := p.consume(RightCurlyBracket, "Expect '}' after class body.")
+	if rightCurlyBracketErr != nil {
+		return rightCurlyBracketErr, nil
+	}
+	return nil, NewStructStatment(name, methods)
+}
+
 func (p *Parser) declaration() (error, Statement) {
+	if p.match(Struct) {
+		return p.structDeclaration()
+	}
 	if p.match(Let) {
 		return p.letDeclaration()
 	}

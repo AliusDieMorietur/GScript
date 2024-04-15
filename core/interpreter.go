@@ -156,6 +156,16 @@ func (i Interpreter) executeWhile(whileStatement *WhileStatement) error {
 
 func (i *Interpreter) execute(statement Statement) error {
 	switch option := (statement).(type) {
+	case *StructStatment:
+		i.environment.define(option.name.lexeme, nil)
+		methods := map[string]*GSFunction{}
+		for _, method := range option.methods {
+			fn := NewGSFunction(method, i.environment)
+			methods[method.name.lexeme] = fn
+		}
+		gStruct := NewGSStruct(option.name.lexeme, methods)
+		i.environment.assign(option.name, gStruct)
+		return nil
 	case *ReturnStatement:
 		err, value := i.evaluate(option.value)
 		if err != nil {
@@ -193,9 +203,6 @@ func (i *Interpreter) execute(statement Statement) error {
 	case *LetStatement:
 		var value any
 		if option.initializer != nil {
-			// if (findToken(option.name, option.initializer)) {
-			// 	return u.NewError("Access variable '%v' before declaration", option.name.lexeme)
-			// }
 			err, result := i.evaluate(option.initializer)
 			if err != nil {
 				return err
@@ -210,7 +217,7 @@ func (i *Interpreter) execute(statement Statement) error {
 			return err
 		}
 		if callee, ok := value.(Callable); ok {
-			fmt.Println(callee.toString())
+			fmt.Println(callee.String())
 			return nil
 		}
 		fmt.Println(value)
@@ -235,6 +242,29 @@ func (i Interpreter) lookUpVariable(name *Token, variable Expression) (error, an
 
 func (i Interpreter) evaluate(expression Expression) (error, any) {
 	switch option := (expression).(type) {
+	case *Get:
+		err, value := i.evaluate(option.object)
+		if err != nil {
+			return err, nil
+		}
+		if instance, ok := value.(*GSInstance); ok {
+			return instance.get(option.name)
+		}
+		return NewRuntimeError("Only instances have property names"), nil
+	case *Set:
+		err, value := i.evaluate(option.object)
+		if err != nil {
+			return err, nil
+		}
+		if instance, ok := value.(*GSInstance); ok {
+			err, value := i.evaluate(option.value)
+			if err != nil {
+				return err, nil
+			}
+			instance.set(option.name, value)
+			return nil, value
+		}
+		return NewRuntimeError("Only instances have property names"), nil
 	case *Function:
 		f := NewGSFunction(option, i.environment)
 		if option.name.lexeme != AnonymusFunction {
@@ -307,7 +337,7 @@ func (i Interpreter) evaluate(expression Expression) (error, any) {
 		if ok {
 			i.environment.assignAt(distance, option.name, value)
 		} else {
-			assignErr := i.globals.assign(option.name.lexeme, value)
+			assignErr := i.globals.assign(option.name, value)
 			if assignErr != nil {
 				return assignErr, nil
 			}

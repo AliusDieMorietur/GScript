@@ -77,6 +77,13 @@ func (r *Resolver) resolveFunction(fn *Function) error {
 
 func (r *Resolver) resolveExpression(expression Expression) error {
 	switch option := (expression).(type) {
+	case *Get:
+		r.resolveExpression(option.object)
+		return nil
+	case *Set:
+		r.resolveExpression(option.value)
+		r.resolveExpression(option.object)
+		return nil
 	case *Grouping:
 		return r.resolveExpression(option.expression)
 	case *Literal:
@@ -144,6 +151,16 @@ func (r *Resolver) resolveExpression(expression Expression) error {
 
 func (r *Resolver) resolveStatement(statement Statement) error {
 	switch option := (statement).(type) {
+	case *StructStatment:
+		r.declare(option.name)
+		r.define(option.name)
+		for _, method := range option.methods {
+			err := r.resolveFunction(method)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
 	case *ReturnStatement:
 		if option.value == nil {
 			return nil
